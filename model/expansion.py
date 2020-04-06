@@ -279,6 +279,8 @@ class Net(nn.Module):
         self.load_state_dict(new_dict)
         self.allocate(args)
 
+        if args.cuda:
+            self.cuda()
 
     def update(self, x, t, y):
         # update memory
