@@ -155,6 +155,7 @@ def life_experience(model, continuum, x_te, args):
 
     for (i, (x, t, y)) in enumerate(continuum):
         if t != current_task:
+            print("start training task " + str(t))
             result_a.append(eval_tasks(model, x_te, args))
             result_t.append(current_task)
             cos_weight = []
@@ -162,12 +163,21 @@ def life_experience(model, continuum, x_te, args):
             current_task = t
             observe = 1
 
+        if (i % args.log_every) == 0:
+            result_a.append(eval_tasks(model, x_te, args))
+            result_t.append(current_task)
+
         if (i == batch_per_task * t + observe_batch) and t > 0:
             cos_layer = torch.tensor(cos_layer)
             if args.cuda:
                 cos_layer = cos_layer.cuda()
             model.expand(cos_layer, cos_weight, t, args)
             observe = 0
+            if args.cuda:
+                try:
+                    model.cuda()
+                except:
+                    pass
 
         v_x = x.view(x.size(0), -1)
         v_y = y.long()
