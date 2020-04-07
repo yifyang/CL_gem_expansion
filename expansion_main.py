@@ -155,13 +155,16 @@ def life_experience(model, continuum, x_te, args):
 
     for (i, (x, t, y)) in enumerate(continuum):
         if t != current_task:
-            print("start training task " + str(t))
-            result_a.append(eval_tasks(model, x_te, args))
+            temp_acc = eval_tasks(model, x_te, args)
+            result_a.append(temp_acc)
             result_t.append(current_task)
             cos_weight = []
             cos_layer = []
             current_task = t
             observe = 1
+
+            print("accuracy of task " + str(t-1) + " is: " + str(sum(temp_acc).item()/len(temp_acc)))
+            print("start training task " + str(t))
 
         if (i % args.log_every) == 0:
             result_a.append(eval_tasks(model, x_te, args))
