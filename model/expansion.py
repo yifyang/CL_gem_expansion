@@ -165,7 +165,7 @@ class Net(nn.Module):
             self.memory_data = self.memory_data.cuda()
             self.memory_labs = self.memory_labs.cuda()
 
-        self.allocate(args)
+        self.allocate()
 
         # allocate counters
         self.observed_tasks = []
@@ -179,7 +179,7 @@ class Net(nn.Module):
         if args.cuda:
             self.cuda()
 
-    def allocate(self, args):
+    def allocate(self):
         # allocate temporary synaptic memory
         self.grad_dims = []
         for param in self.parameters():
@@ -196,7 +196,7 @@ class Net(nn.Module):
                 for param in layer.parameters():
                     self.grad_dims_layer[layer_num].append(param.data.numel())
                 self.grads_layer.append(torch.Tensor(sum(self.grad_dims_layer[layer_num]), self.n_tasks))
-                if args.cuda:
+                if self.gpu:
                     self.grads_layer[-1] = self.grads_layer[-1].cuda()
                 layer_num += 1
         else:
@@ -210,11 +210,11 @@ class Net(nn.Module):
             for param in self.for_layer:
                 self.grad_dims_layer.append([param.data.numel()])
                 self.grads_layer.append(torch.Tensor(sum(self.grad_dims_layer[layer_num]), self.n_tasks))
-                if args.cuda:
+                if self.gpu:
                     self.grads_layer[-1] = self.grads_layer[-1].cuda()
                 layer_num += 1
 
-        if args.cuda:
+        if self.gpu:
             self.grads = self.grads.cuda()
 
     def forward(self, x, t):
@@ -229,7 +229,7 @@ class Net(nn.Module):
                 output[:, offset2:self.n_outputs].data.fill_(-10e10)
         return output
 
-    def expand(self, cos_layer, cos_weight, t, args):
+    def expand(self, cos_layer, cos_weight, t):
         layers = len(cos_layer[0])
         layers_expand = layer_sort(cos_layer, t)
         layer_size = []
@@ -251,10 +251,16 @@ class Net(nn.Module):
                 if j < len(layers_expand):
                     neuron_size = int((layers_expand[j]+1)*temp_size[0])
                     hidden_layer.append(neuron_size)
+                    cat_tensor = torch.randn(neuron_size-temp_size[0], pre_x)
+                    if self.gpu:
+                        cat_tensor = cat_tensor.cuda()
                     new_dict[name] = \
-                        nn.Parameter(torch.cat((new_dict[name], torch.randn(neuron_size-temp_size[0], pre_x)), 0))
+                        nn.Parameter(torch.cat((new_dict[name], cat_tensor), 0))
+                    cat_tensor = torch.randn(neuron_size-temp_size[0])
+                    if self.gpu:
+                        cat_tensor = cat_tensor.cuda()
                     new_dict[name.replace('weight', 'bias')] = \
-                        nn.Parameter(torch.cat((new_dict[name.replace('weight', 'bias')], torch.randn(neuron_size-temp_size[0])), 0))
+                        nn.Parameter(torch.cat((new_dict[name.replace('weight', 'bias')], cat_tensor), 0))
                     pre_x = neuron_size
 
                 # sort gradient of weights at each layer
@@ -277,9 +283,9 @@ class Net(nn.Module):
         # rebuild the network
         self.net = MLP([self.n_inputs] + hidden_layer + [self.n_outputs])
         self.load_state_dict(new_dict)
-        self.allocate(args)
+        self.allocate()
 
-        if args.cuda:
+        if self.gpu:
             self.cuda()
 
     def update(self, x, t, y):

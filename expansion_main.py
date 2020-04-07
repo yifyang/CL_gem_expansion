@@ -171,7 +171,7 @@ def life_experience(model, continuum, x_te, args):
             cos_layer = torch.tensor(cos_layer)
             if args.cuda:
                 cos_layer = cos_layer.cuda()
-            model.expand(cos_layer, cos_weight, t, args)
+            model.expand(cos_layer, cos_weight, t)
             observe = 0
             if args.cuda:
                 try:
