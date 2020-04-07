@@ -163,7 +163,7 @@ def life_experience(model, continuum, x_te, args):
             current_task = t
             observe = 1
 
-            print("accuracy of task " + str(t-1) + " is: " + str(sum(temp_acc).item()/len(temp_acc)))
+            print("accuracy of task " + str(t-1) + " is: " + str(temp_acc[t-1].item()))
             print("start training task " + str(t))
 
         if (i % args.log_every) == 0:
