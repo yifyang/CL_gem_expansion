@@ -246,8 +246,11 @@ class Net(nn.Module):
             if 'bias' not in name:
                 layer_size.append(temp_size)
                 if pre_x > temp_size[1]:
+                    cat_tensor = torch.randn(temp_size[0], pre_x-temp_size[1])
+                    if self.gpu:
+                        cat_tensor = cat_tensor.cuda()
                     new_dict[name] = \
-                        nn.Parameter(torch.cat((new_dict[name], torch.randn(temp_size[0], pre_x-temp_size[1])), 1))
+                        nn.Parameter(torch.cat((new_dict[name], cat_tensor), 1))
                 if j < len(layers_expand):
                     neuron_size = int((layers_expand[j]+1)*temp_size[0])
                     hidden_layer.append(neuron_size)
