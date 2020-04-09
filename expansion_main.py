@@ -167,10 +167,11 @@ def life_experience(model, continuum, x_te, args):
             current_task = t
             observe = 1
 
-            print("accuracy of task " + str(t-1) + " is: " + str(temp_acc[t-1].item()))
+            for pre_t in range(t):
+                print("accuracy of task " + str(pre_t) + " is: " + str(temp_acc[pre_t].item()))
             print("start training task " + str(t))
 
-        if t > 4:
+        if t > 3:  # hot fix
             break
 
         if (i % args.log_every) == 0:
@@ -210,6 +211,7 @@ def life_experience(model, continuum, x_te, args):
 
     result_a.append(eval_tasks(model, x_te, args))
     result_t.append(current_task)
+    result_l[0] = result_l[0][150:] # hot fix
 
     time_end = time.time()
     time_spent = time_end - time_start
