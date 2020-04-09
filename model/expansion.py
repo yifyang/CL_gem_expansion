@@ -244,27 +244,48 @@ class Net(nn.Module):
             # expand the number of neurons at each layer
             temp_size = param.size()
             if 'bias' not in name:
+                expand_x, expand_y = temp_size[0], pre_x
                 layer_size.append(temp_size)
-                if pre_x > temp_size[1]:
-                    cat_tensor = torch.randn(temp_size[0], pre_x-temp_size[1])
-                    if self.gpu:
-                        cat_tensor = cat_tensor.cuda()
-                    new_dict[name] = \
-                        nn.Parameter(torch.cat((new_dict[name], cat_tensor), 1))
+                    # cat_tensor = torch.randn(temp_size[0], pre_x-temp_size[1])
+                    # if self.gpu:
+                    #     cat_tensor = cat_tensor.cuda()
+                    # new_dict[name] = \
+                    #     nn.Parameter(torch.cat((new_dict[name], cat_tensor), 1))
                 if j < len(layers_expand):
-                    neuron_size = int((layers_expand[j]+1)*temp_size[0])
-                    hidden_layer.append(neuron_size)
-                    cat_tensor = torch.randn(neuron_size-temp_size[0], pre_x)
+                    expand_x = int((layers_expand[j]+1)*temp_size[0])
+                    # neuron_size = int((layers_expand[j]+1)*temp_size[0])
+                    hidden_layer.append(expand_x)
+                    init_weight = torch.zeros(expand_x, expand_y)
                     if self.gpu:
-                        cat_tensor = cat_tensor.cuda()
-                    new_dict[name] = \
-                        nn.Parameter(torch.cat((new_dict[name], cat_tensor), 0))
-                    cat_tensor = torch.randn(neuron_size-temp_size[0])
+                        init_weight = init_weight.cuda()
+                    torch.nn.init.xavier_normal_(init_weight, gain=1)
+                    init_weight[:temp_size[0], :temp_size[1]] = new_dict[name]
+                    new_dict[name] = nn.Parameter(init_weight)
+
+                    init_bias = torch.zeros(expand_x)
                     if self.gpu:
-                        cat_tensor = cat_tensor.cuda()
+                        init_bias = init_bias.cuda()
+                    init_bias[:temp_size[0]] = new_dict[name.replace('weight', 'bias')]
                     new_dict[name.replace('weight', 'bias')] = \
-                        nn.Parameter(torch.cat((new_dict[name.replace('weight', 'bias')], cat_tensor), 0))
-                    pre_x = neuron_size
+                        nn.Parameter(init_bias)
+                    # cat_tensor = torch.randn(neuron_size-temp_size[0], pre_x)
+                    # if self.gpu:
+                    #     cat_tensor = cat_tensor.cuda()
+                    # new_dict[name] = \
+                    #     nn.Parameter(torch.cat((new_dict[name], cat_tensor), 0))
+                    # cat_tensor = torch.randn(neuron_size-temp_size[0])
+                    # if self.gpu:
+                    #     cat_tensor = cat_tensor.cuda()
+                    # new_dict[name.replace('weight', 'bias')] = \
+                    #     nn.Parameter(torch.cat((new_dict[name.replace('weight', 'bias')], cat_tensor), 0))
+                    pre_x = expand_x
+                elif j >= len(layers_expand):
+                    init_weight = torch.zeros(expand_x, expand_y)
+                    if self.gpu:
+                        init_weight = init_weight.cuda()
+                    torch.nn.init.xavier_normal_(init_weight, gain=1)
+                    init_weight[:temp_size[0], :temp_size[1]] = new_dict[name]
+                    new_dict[name] = nn.Parameter(init_weight)
 
                 # sort gradient of weights at each layer
                 cos_weight[j] = torch.sum(cos_weight[j].view(temp_size[0], temp_size[1]), dim=1)
