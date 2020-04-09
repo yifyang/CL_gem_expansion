@@ -152,12 +152,16 @@ def life_experience(model, continuum, x_te, args):
     batch_per_task = int(args.samples_per_task / args.batch_size)
     observe_batch = int(0.05 * batch_per_task)
     observe = 1
+    temp_total_task = 3
 
     time_start = time.time()
 
     for (i, (x, t, y)) in enumerate(continuum):
+        if t > temp_total_task:  # hot fix
+            break
+
         if t != current_task:
-            temp_acc = eval_tasks(model, x_te, args)
+            temp_acc = eval_tasks(model, x_te, args)[:temp_total_task+1]
             result_a.append(temp_acc)
             result_t.append(current_task)
             result_l.append(task_l)
@@ -171,11 +175,8 @@ def life_experience(model, continuum, x_te, args):
                 print("accuracy of task " + str(pre_t) + " is: " + str(temp_acc[pre_t].item()))
             print("start training task " + str(t))
 
-        if t > 3:  # hot fix
-            break
-
         if (i % args.log_every) == 0:
-            result_a.append(eval_tasks(model, x_te, args))
+            result_a.append(eval_tasks(model, x_te, args)[:temp_total_task+1])
             result_t.append(current_task)
 
         if (i == batch_per_task * t + observe_batch) and t > 0:
@@ -209,9 +210,9 @@ def life_experience(model, continuum, x_te, args):
             model.train()
             task_l.append(model.update(Variable(v_x), t, Variable(v_y)))
 
-    result_a.append(eval_tasks(model, x_te, args))
+    result_a.append(eval_tasks(model, x_te, args)[:temp_total_task+1])
     result_t.append(current_task)
-    result_l[0] = result_l[0][150:] # hot fix
+    result_l[0] = result_l[0][observe_batch:] # hot fix
 
     time_end = time.time()
     time_spent = time_end - time_start
