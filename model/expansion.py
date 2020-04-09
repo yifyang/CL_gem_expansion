@@ -350,6 +350,8 @@ class Net(nn.Module):
 
         self.opt.step()
 
+        return loss
+
     def observe(self, x, t, y):
         # update memory
         if t != self.old_task:

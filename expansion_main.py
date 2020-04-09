@@ -143,6 +143,8 @@ def eval_tasks(model, tasks, args):
 def life_experience(model, continuum, x_te, args):
     result_a = []  # accuracy
     result_t = []  # number of task
+    result_l = []
+    task_l = []
     cos_layer = []
     cos_weight = []
 
@@ -158,6 +160,8 @@ def life_experience(model, continuum, x_te, args):
             temp_acc = eval_tasks(model, x_te, args)
             result_a.append(temp_acc)
             result_t.append(current_task)
+            result_l.append(task_l)
+            task_l = []
             cos_weight = []
             cos_layer = []
             current_task = t
@@ -165,6 +169,9 @@ def life_experience(model, continuum, x_te, args):
 
             print("accuracy of task " + str(t-1) + " is: " + str(temp_acc[t-1].item()))
             print("start training task " + str(t))
+
+        if t > 4:
+            break
 
         if (i % args.log_every) == 0:
             result_a.append(eval_tasks(model, x_te, args))
@@ -199,7 +206,7 @@ def life_experience(model, continuum, x_te, args):
                 cos_weight = add_list(cos_weight, temp_weight)
         else:
             model.train()
-            model.update(Variable(v_x), t, Variable(v_y))
+            task_l.append(model.update(Variable(v_x), t, Variable(v_y)))
 
     result_a.append(eval_tasks(model, x_te, args))
     result_t.append(current_task)
@@ -207,7 +214,7 @@ def life_experience(model, continuum, x_te, args):
     time_end = time.time()
     time_spent = time_end - time_start
 
-    return torch.Tensor(result_t), torch.Tensor(result_a), time_spent
+    return torch.Tensor(result_t), torch.Tensor(result_a), torch.Tensor(result_l), time_spent
 
 
 if __name__ == "__main__":
@@ -315,7 +322,7 @@ if __name__ == "__main__":
             pass
 
             # run model on continuum
-    result_t, result_a, result_cos, spent_time = life_experience(
+    result_t, result_a, result_l, spent_time = life_experience(
         model, continuum, x_te, args)
 
     # prepare saving path and file name
@@ -334,5 +341,5 @@ if __name__ == "__main__":
     print(fname + ': ' + one_liner + ' # ' + str(spent_time))
 
     # save all results in binary file
-    torch.save((result_t, result_a, result_cos, model.state_dict(),
+    torch.save((result_t, result_a, result_l, model.state_dict(),
                 stats, one_liner, args), fname + '.pt')
