@@ -340,16 +340,6 @@ class Net(nn.Module):
         loss = self.ce(self.forward(x, t)[:, offset1: offset2], y - offset1)
         loss.backward()
 
-        """
-        # freeze the neurons selected
-        if t > 0:
-            layer = 0
-            for name, param in self.named_parameters():
-                if 'bias' not in name:
-                    param.register_hook(my_hook(self.sel_neuron[layer], self.sel_neuron[layer+1]))
-                    layer += 1
-        """
-
         self.opt.step()
 
         return loss

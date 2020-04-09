@@ -344,9 +344,19 @@ class Net(nn.Module):
         if t > 0:
             layer = 0
             for name, param in self.named_parameters():
+                mask1 = torch.Tensor(self.sel_neuron[layer]).long().nonzero().view(-1).numpy()
+                mask2 = torch.Tensor(self.sel_neuron[layer+1]).long().nonzero().view(-1).numpy()
                 if 'bias' not in name:
-                    param.register_hook(my_hook(self.sel_neuron[layer], self.sel_neuron[layer+1]))
+                    param.grad[:, mask1] = 0
+                    param.grad[mask2, :] = 0
+                    # param.register_hook(my_hook(self.sel_neuron[layer], self.sel_neuron[layer+1]))
                     layer += 1
+                else:
+                    layer += 1
+                    if layer >= self.n_layers:
+                        break
+                    param.grad[mask2] = 0
+
 
         self.opt.step()
 
