@@ -156,6 +156,7 @@ class Net(nn.Module):
         self.n_memories = args.n_memories
         self.n_tasks = n_tasks
         self.gpu = args.cuda
+        self.lr = args.lr
 
         # allocate episodic memory
         self.memory_data = torch.FloatTensor(
@@ -307,6 +308,7 @@ class Net(nn.Module):
         # rebuild the network
         self.net = MLP([self.n_inputs] + hidden_layer + [self.n_outputs])
         self.load_state_dict(new_dict)
+        self.opt = optim.SGD(self.parameters(), self.lr)
         self.allocate()
 
         if self.gpu:
