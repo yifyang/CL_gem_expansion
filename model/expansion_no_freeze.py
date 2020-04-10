@@ -307,6 +307,7 @@ class Net(nn.Module):
         # rebuild the network
         self.net = MLP([self.n_inputs] + hidden_layer + [self.n_outputs])
         self.load_state_dict(new_dict)
+        self.opt = optim.SGD(self.parameters(), self.lr)
         self.allocate()
 
         if self.gpu:
