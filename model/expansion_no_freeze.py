@@ -156,6 +156,7 @@ class Net(nn.Module):
         self.n_memories = args.n_memories
         self.n_tasks = n_tasks
         self.gpu = args.cuda
+        self.lr = args.lr
 
         # allocate episodic memory
         self.memory_data = torch.FloatTensor(
