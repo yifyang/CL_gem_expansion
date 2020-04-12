@@ -93,6 +93,7 @@ def layer_sort(cos_layer, t):
     """
     layers = len(cos_layer[0])
     layers_cos = [0] * layers
+    ass = [0.8, 0.3]
 
     for i in range(layers):
         temp = torch.sum(torch.sum(cos_layer[:, i], dim=0) / len(cos_layer))
@@ -101,12 +102,16 @@ def layer_sort(cos_layer, t):
     _, layers_sort = torch.sort(torch.tensor(layers_cos))
 
     layers_expand = [0] * (layers - 1)
-    ass = 0.8
+    j = 0
     for i in range(layers):
         if layers_sort[i] == 0:
             continue
-        layers_expand[layers_sort[i] - 1] = ass
-        ass = 0.3
+        if layers_cos[layers_sort[i]] > 0:
+            layers_expand[layers_sort[i] - 1] = 0
+            j += 1
+            continue
+        layers_expand[layers_sort[i] - 1] = ass[j]
+        j += 1
 
     return layers_expand
 
