@@ -111,20 +111,6 @@ def layer_sort(cos_layer, t):
     return layers_expand
 
 
-class my_hook(object):
-
-    def __init__(self, mask1, mask2):
-        self.mask1 = torch.Tensor(mask1).long().nonzero().view(-1).numpy()
-        self.mask2 = torch.Tensor(mask2).long().nonzero().view(-1).numpy()
-
-    def __call__(self, grad):
-        grad_clone = grad.clone()
-        if self.mask1.size:
-            grad_clone[:, self.mask1] = 0
-        if self.mask2.size:
-            grad_clone[self.mask2, :] = 0
-
-
 class Net(nn.Module):
     def __init__(self,
                  n_inputs,
@@ -247,14 +233,9 @@ class Net(nn.Module):
             if 'bias' not in name:
                 expand_x, expand_y = temp_size[0], pre_x
                 layer_size.append(temp_size)
-                    # cat_tensor = torch.randn(temp_size[0], pre_x-temp_size[1])
-                    # if self.gpu:
-                    #     cat_tensor = cat_tensor.cuda()
-                    # new_dict[name] = \
-                    #     nn.Parameter(torch.cat((new_dict[name], cat_tensor), 1))
                 if j < len(layers_expand):
+                    # expand weights
                     expand_x = int((layers_expand[j]+1)*temp_size[0])
-                    # neuron_size = int((layers_expand[j]+1)*temp_size[0])
                     hidden_layer.append(expand_x)
                     init_weight = torch.zeros(expand_x, expand_y)
                     if self.gpu:
@@ -263,22 +244,13 @@ class Net(nn.Module):
                     init_weight[:temp_size[0], :temp_size[1]] = new_dict[name]
                     new_dict[name] = nn.Parameter(init_weight)
 
+                    # expand bias
                     init_bias = torch.zeros(expand_x)
                     if self.gpu:
                         init_bias = init_bias.cuda()
                     init_bias[:temp_size[0]] = new_dict[name.replace('weight', 'bias')]
                     new_dict[name.replace('weight', 'bias')] = \
                         nn.Parameter(init_bias)
-                    # cat_tensor = torch.randn(neuron_size-temp_size[0], pre_x)
-                    # if self.gpu:
-                    #     cat_tensor = cat_tensor.cuda()
-                    # new_dict[name] = \
-                    #     nn.Parameter(torch.cat((new_dict[name], cat_tensor), 0))
-                    # cat_tensor = torch.randn(neuron_size-temp_size[0])
-                    # if self.gpu:
-                    #     cat_tensor = cat_tensor.cuda()
-                    # new_dict[name.replace('weight', 'bias')] = \
-                    #     nn.Parameter(torch.cat((new_dict[name.replace('weight', 'bias')], cat_tensor), 0))
                     pre_x = expand_x
                 elif j >= len(layers_expand):
                     init_weight = torch.zeros(expand_x, expand_y)
@@ -290,7 +262,7 @@ class Net(nn.Module):
 
                 # sort gradient of weights at each layer
                 cos_weight[j] = torch.sum(cos_weight[j].view(temp_size[0], temp_size[1]), dim=1)
-                if j > 0:
+                if j < len(layers_expand):
                     _, temp_sort = torch.sort(cos_weight[j])
                     weight_sort.append(temp_sort)
                 j += 1
@@ -299,9 +271,9 @@ class Net(nn.Module):
         for ii in range(layers-1):
             self.sel_neuron[ii] = [False] * int(len(cos_weight[ii])
                                              * (1 + layers_expand[ii]))
-            cos_weight[ii] = cos_weight[ii][:int(layers_expand[ii] * len(cos_weight[ii]))]
+            weight_sort[ii] = weight_sort[ii][:int(layers_expand[ii] * len(cos_weight[ii]))]
             for jj in range(len(self.sel_neuron[ii])):
-                if jj in cos_weight[ii]:
+                if jj in weight_sort[ii]:
                     self.sel_neuron[ii][jj] = True
         self.sel_neuron = [[False] * self.n_inputs] + self.sel_neuron + [[False] * self.n_outputs]
 
@@ -351,7 +323,6 @@ class Net(nn.Module):
                 if 'bias' not in name:
                     param.grad[:, mask1] = 0
                     param.grad[mask2, :] = 0
-                    # param.register_hook(my_hook(self.sel_neuron[layer], self.sel_neuron[layer+1]))
                     layer += 1
                 else:
                     layer += 1
