@@ -99,7 +99,7 @@ def layer_sort(cos_layer, t):
         temp = torch.sum(torch.sum(cos_layer[:, i], dim=0) / len(cos_layer))
         layers_cos[i] = temp / t
 
-    _, layers_sort = torch.sort(torch.tensor(layers_cos))
+    layers_sort_cos, layers_sort = torch.sort(torch.tensor(layers_cos))
 
     layers_expand = [0] * (layers - 1)
     j = 0
@@ -109,9 +109,13 @@ def layer_sort(cos_layer, t):
         elif layers_cos[layers_sort[i]] > 0:
             layers_expand[layers_sort[i] - 1] = 0
             j += 1
+            print("layer to expand: " + str(layers_sort[i]) + " ; " + str(0))
+            print("cos distance: " + str(layers_sort_cos[i]))
             continue
         else:
             layers_expand[layers_sort[i] - 1] = ass[j]
+            print("layer to expand: " + str(layers_sort[i]) + " ; " + str(ass[j]))
+            print("cos distance: " + str(layers_sort_cos[i]))
             j += 1
 
     return layers_expand
