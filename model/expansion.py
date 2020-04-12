@@ -106,12 +106,13 @@ def layer_sort(cos_layer, t):
     for i in range(layers):
         if layers_sort[i] == 0:
             continue
-        if layers_cos[layers_sort[i]] > 0:
+        elif layers_cos[layers_sort[i]] > 0:
             layers_expand[layers_sort[i] - 1] = 0
             j += 1
             continue
-        layers_expand[layers_sort[i] - 1] = ass[j]
-        j += 1
+        else:
+            layers_expand[layers_sort[i] - 1] = ass[j]
+            j += 1
 
     return layers_expand
 
