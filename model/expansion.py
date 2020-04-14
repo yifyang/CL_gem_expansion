@@ -93,7 +93,7 @@ def layer_sort(cos_layer, t):
     """
     layers = len(cos_layer[0])
     layers_cos = [0] * layers
-    ass = [0.8, 0.3]
+    ass = [0.5, 0.2]
 
     for i in range(layers):
         temp = torch.sum(torch.sum(cos_layer[:, i], dim=0) / len(cos_layer))
@@ -431,7 +431,7 @@ class Net(nn.Module):
                     cos_weight_temp += torch.tensor(task_weight_temp)
                 cos_layer_temp += [0] * ((self.n_tasks - 1) - len(cos_layer_temp))
                 cos_layers.append(cos_layer_temp)
-                cos_weight.append(torch.tensor(cos_weight_temp))
+                cos_weight.append(cos_weight_temp)
 
         self.zero_grad()
 
