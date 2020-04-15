@@ -106,7 +106,7 @@ def layer_sort(cos_layer, t):
     for i in range(layers):
         if layers_sort[i] == 0:
             continue
-        elif layers_cos[layers_sort[i]] > 0:
+        elif layers_cos[layers_sort[i]] > 0.01:
             layers_expand[layers_sort[i] - 1] = 0
             j += 1
             print("layer to expand: " + str(layers_sort[i]) + " ; " + str(0))
