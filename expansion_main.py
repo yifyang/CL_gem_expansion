@@ -159,6 +159,11 @@ def life_experience(model, continuum, x_te, args):
     for (i, (x, t, y)) in enumerate(continuum):
         if t != current_task:
             temp_acc = eval_tasks(model, x_te, args)[:temp_total_task+1]
+            for pre_t in range(t):
+                print("accuracy of task " + str(pre_t) + " is: " + str(temp_acc[pre_t].item()))
+            if t > temp_total_task:  # hot fix
+                break
+
             result_a.append(temp_acc)
             result_t.append(current_task)
             result_l.append(task_l)
@@ -168,10 +173,6 @@ def life_experience(model, continuum, x_te, args):
             current_task = t
             observe = 1
 
-            for pre_t in range(t):
-                print("accuracy of task " + str(pre_t) + " is: " + str(temp_acc[pre_t].item()))
-            if t > temp_total_task:  # hot fix
-                break
             print("start training task " + str(t))
 
         if (i % args.log_every) == 0:
