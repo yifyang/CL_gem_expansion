@@ -330,9 +330,6 @@ class Net(nn.Module):
             for name, param in self.named_parameters():
                 mask1 = torch.Tensor(self.sel_neuron[layer]).long().nonzero().view(-1).numpy()
                 mask2 = torch.Tensor(self.sel_neuron[layer+1]).long().nonzero().view(-1).numpy()
-                if self.gpu:
-                    mask1 = mask1.cuda()
-                    mask2 = mask2.cuda()
                 if 'bias' not in name:
                     param.grad[:, mask1] = 0
                     param.grad[mask2, :] = 0
