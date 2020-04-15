@@ -266,6 +266,9 @@ if __name__ == "__main__":
     parser.add_argument('--beta', type=float, default=1.0,
                         help='beta learning rate parameter')  # exploration factor in roe
 
+    parser.add_argument('--thre', type=float, default=0,
+                        help='Threshold to decide expand or not')
+
     # experiment parameters
     parser.add_argument('--cuda', type=str, default='no',
                         help='Use GPU?')
