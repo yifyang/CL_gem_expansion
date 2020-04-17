@@ -269,6 +269,9 @@ if __name__ == "__main__":
     parser.add_argument('--thre', type=float, default=0,
                         help='Threshold to decide expand or not')
 
+    parser.add_argument('--expand_size', type=float, nargs='+', default=[0.8, 0.4],
+                        help='Percent of neurons to expand')
+
     # experiment parameters
     parser.add_argument('--cuda', type=str, default='no',
                         help='Use GPU?')
@@ -289,6 +292,7 @@ if __name__ == "__main__":
     parser.add_argument('--shuffle_tasks', type=str, default='no',
                         help='present tasks in order')
     args = parser.parse_args()
+    print(args.expand_size)
 
     args.cuda = True if args.cuda == 'yes' else False
     args.finetune = True if args.finetune == 'yes' else False

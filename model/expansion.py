@@ -85,7 +85,7 @@ def store_layer_grad(layers, grads_layer, grad_dims_layer, tid, is_cifar):
             cnt += 1
             layer_num += 1
 
-def layer_sort(cos_layer, t, threshold):
+def layer_sort(cos_layer, t, threshold, ass):
     """
         This sort the gradient of layers.
         cos_layer: cosine similarity between two tasks at each layer
@@ -93,7 +93,6 @@ def layer_sort(cos_layer, t, threshold):
     """
     layers = len(cos_layer[0])
     layers_cos = [0] * layers
-    ass = [0.5, 0.2]
 
     for i in range(layers):
         temp = torch.sum(torch.sum(cos_layer[:, i], dim=0) / len(cos_layer))
@@ -154,6 +153,7 @@ class Net(nn.Module):
         self.gpu = args.cuda
         self.lr = args.lr
         self.thre = args.thre
+        self.expand_size = args.expand_size
 
         # allocate episodic memory
         self.memory_data = torch.FloatTensor(
@@ -229,7 +229,7 @@ class Net(nn.Module):
 
     def expand(self, cos_layer, cos_weight, t):
         layers = len(cos_layer[0])
-        layers_expand = layer_sort(cos_layer, t, self.thre)
+        layers_expand = layer_sort(cos_layer, t, self.thre, self.expand_size)
         layer_size = []
         new_dict = self.state_dict()
         self.sel_neuron = [[]] * self.n_layers
