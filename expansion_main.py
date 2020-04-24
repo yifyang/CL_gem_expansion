@@ -246,27 +246,8 @@ if __name__ == "__main__":
     parser.add_argument('--memory_strength', default=1.0, type=float,
                         help='memory strength (meaning depends on memory)')
 
-    # parameters specific to models in https://openreview.net/pdf?id=B1gTShAct7
-
-    parser.add_argument('--memories', type=int, default=5120,
-                        help='number of total memories stored in a reservoir sampling based buffer')
-
-    parser.add_argument('--gamma', type=float, default=1.0,
-                        help='gamma learning rate parameter')  # gating net lr in roe
-
-    parser.add_argument('--batches_per_example', type=float, default=1,
-                        help='the number of batch per incoming example')
-
-    parser.add_argument('--s', type=float, default=1,
-                        help='current example learning rate multiplier (s)')
-
-    parser.add_argument('--replay_batch_size', type=float, default=20,
-                        help='The batch size for experience replay. Denoted as k-1 in the paper.')
-
-    parser.add_argument('--beta', type=float, default=1.0,
-                        help='beta learning rate parameter')  # exploration factor in roe
-
-    parser.add_argument('--thre', type=float, default=0,
+    # expansion model parameters
+    parser.add_argument('--thre', type=float, default=0.07,
                         help='Threshold to decide expand or not')
 
     parser.add_argument('--expand_size', type=float, nargs='+', default=[0.8, 0.4],

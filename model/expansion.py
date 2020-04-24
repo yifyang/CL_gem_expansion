@@ -278,7 +278,8 @@ class Net(nn.Module):
                     weight_sort.append(temp_sort)
                 j += 1
 
-        # select neurons
+        """
+        # select neurons (freeze neurons with low cos_sim)
         for ii in range(layers-1):
             self.sel_neuron[ii] = [False] * int(len(cos_weight[ii])
                                              * (1 + layers_expand[ii]))
@@ -286,6 +287,13 @@ class Net(nn.Module):
             for jj in range(len(self.sel_neuron[ii])):
                 if jj in weight_sort[ii]:
                     self.sel_neuron[ii][jj] = True
+        self.sel_neuron = [[False] * self.n_inputs] + self.sel_neuron + [[False] * self.n_outputs]
+        """
+
+        # select neurons (only update expanded part)
+        for ii in range(layers - 1):
+            self.sel_neuron[ii] = [True] * len(cos_weight[ii])\
+                                  + [False] * int(len(cos_weight[ii]) * layers_expand[ii])
         self.sel_neuron = [[False] * self.n_inputs] + self.sel_neuron + [[False] * self.n_outputs]
 
         # rebuild the network
