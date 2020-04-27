@@ -110,6 +110,7 @@ class Continuum:
 
 
 def eval_tasks(model, tasks, args):
+    current_dict = model.state_dict()
     model.eval()
     result = []
     for i, task in enumerate(tasks):
@@ -117,6 +118,10 @@ def eval_tasks(model, tasks, args):
         x = task[1]
         y = task[2]
         rt = 0
+        if t < len(model.task_dict):
+            model.load_state_dict(model.task_dict[t])
+        else:
+            model.load_state_dict(current_dict)
 
         eval_bs = x.size(0)
 
@@ -136,6 +141,8 @@ def eval_tasks(model, tasks, args):
                 rt += (pb == yb).float().sum()
 
         result.append(rt / x.size(0))
+
+    model.load_state_dict(current_dict)
 
     return result
 
@@ -247,7 +254,7 @@ if __name__ == "__main__":
                         help='memory strength (meaning depends on memory)')
 
     # expansion model parameters
-    parser.add_argument('--thre', type=float, default=0.07,
+    parser.add_argument('--thre', type=float, default=1,
                         help='Threshold to decide expand or not')
 
     parser.add_argument('--expand_size', type=float, nargs='+', default=[0.8, 0.4],
@@ -273,7 +280,6 @@ if __name__ == "__main__":
     parser.add_argument('--shuffle_tasks', type=str, default='no',
                         help='present tasks in order')
     args = parser.parse_args()
-    print(args.expand_size)
 
     args.cuda = True if args.cuda == 'yes' else False
     args.finetune = True if args.finetune == 'yes' else False
