@@ -13,7 +13,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 
 import numpy as np
-import quadprog
+import copy
 
 from .common import MLP, ResNet18
 
@@ -235,8 +235,8 @@ class Net(nn.Module):
         layers = len(cos_layer[0])
         layers_expand = layer_sort(cos_layer, t, self.thre, self.expand_size)
         # layer_size = []
-        current_dict = self.state_dict()
-        self.task_dict.append(current_dict)
+        # current_dict = copy.deepcopy(self.state_dict())
+        # self.task_dict.append(current_dict)
         # new_dict = self.state_dict()
         self.sel_neuron = [[]] * self.n_layers
 
@@ -251,18 +251,7 @@ class Net(nn.Module):
                 cos_weight[layer] = torch.sum(cos_weight[layer].view(param_size[0], param_size[1]), dim=0)
                 _, temp_sort = torch.sort(cos_weight[layer])
                 weight_sort.append(temp_sort)
-
-                # update the weights for previous tasks
-                for t_i in range(len(self.task_dict) - 1):
-                    sel1 = self.neuron_share[t_i][layer]
-                    sel2 = self.neuron_share[t_i][layer + 1]
-                    self.task_dict[t_i][name][:, sel1] = current_dict[name][:, sel1]
-                    self.task_dict[t_i][name][sel2, :] = current_dict[name][sel2, :]
             else:
-                # update the bias for previous tasks
-                for t_i in range(len(self.task_dict) - 1):
-                    sel = self.neuron_share[t_i][layer + 1]
-                    self.task_dict[t_i][name][sel] = current_dict[name][sel]
                 layer += 1
 
         # select neurons (freeze neurons with low cos_sim)
@@ -347,6 +336,29 @@ class Net(nn.Module):
         if self.gpu:
             self.cuda()
         """
+
+    def share(self, freeze_all):
+        current_dict = copy.deepcopy(self.state_dict())
+        self.task_dict.append(current_dict)
+
+        if freeze_all:
+            return
+
+        layer = 0
+        for name, param in self.named_parameters():
+            if 'bias' not in name:
+                # update the weights for previous tasks
+                for t_i in range(len(self.task_dict) - 1):
+                    sel1 = self.neuron_share[t_i][layer]
+                    sel2 = self.neuron_share[t_i][layer + 1]
+                    self.task_dict[t_i][name][:, sel1] = current_dict[name][:, sel1]
+                    self.task_dict[t_i][name][sel2, :] = current_dict[name][sel2, :]
+            else:
+                # update the bias for previous tasks
+                for t_i in range(len(self.task_dict) - 1):
+                    sel = self.neuron_share[t_i][layer + 1]
+                    self.task_dict[t_i][name][sel] = current_dict[name][sel]
+                layer += 1
 
     def update(self, x, t, y):
         # update memory

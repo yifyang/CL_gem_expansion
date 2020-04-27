@@ -12,6 +12,7 @@ import importlib
 import datetime
 import argparse
 import random
+import copy
 import uuid
 import time
 import os
@@ -110,7 +111,7 @@ class Continuum:
 
 
 def eval_tasks(model, tasks, args):
-    current_dict = model.state_dict()
+    current_dict = copy.deepcopy(model.state_dict())
     model.eval()
     result = []
     for i, task in enumerate(tasks):
@@ -165,6 +166,7 @@ def life_experience(model, continuum, x_te, args):
 
     for (i, (x, t, y)) in enumerate(continuum):
         if t != current_task:
+            model.share(args.freeze_all)
             temp_acc = eval_tasks(model, x_te, args)[:temp_total_task+1]
             for pre_t in range(t):
                 print("accuracy of task " + str(pre_t) + " is: " + str(temp_acc[pre_t].item()))
@@ -256,9 +258,10 @@ if __name__ == "__main__":
     # expansion model parameters
     parser.add_argument('--thre', type=float, default=1,
                         help='Threshold to decide expand or not')
-
     parser.add_argument('--expand_size', type=float, nargs='+', default=[0.8, 0.4],
                         help='Percent of neurons to expand')
+    parser.add_argument('--freeze_all', type=bool, default=True,
+                        help='Freeze all neurons from previous task or not')
 
     # experiment parameters
     parser.add_argument('--cuda', type=str, default='no',
