@@ -260,7 +260,7 @@ if __name__ == "__main__":
                         help='Threshold to decide expand or not')
     parser.add_argument('--expand_size', type=float, nargs='+', default=[0.8, 0.4],
                         help='Percent of neurons to expand')
-    parser.add_argument('--freeze_all', type=bool, default=True,
+    parser.add_argument('--freeze_all', type=str, default='yes',
                         help='Freeze all neurons from previous task or not')
 
     # experiment parameters
@@ -286,6 +286,7 @@ if __name__ == "__main__":
 
     args.cuda = True if args.cuda == 'yes' else False
     args.finetune = True if args.finetune == 'yes' else False
+    args.freeze_all = True if args.finetune == 'yes' else False
 
     # taskinput model has one extra layer
     if args.model == 'taskinput':
