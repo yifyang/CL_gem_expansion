@@ -166,7 +166,7 @@ def life_experience(model, continuum, x_te, args):
 
     for (i, (x, t, y)) in enumerate(continuum):
         if t != current_task:
-            model.share(args.freeze_all)
+            # model.share(args.freeze_all)
             temp_acc = eval_tasks(model, x_te, args)[:temp_total_task+1]
             for pre_t in range(t):
                 print("accuracy of task " + str(pre_t) + " is: " + str(temp_acc[pre_t].item()))
@@ -233,7 +233,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Continuum learning')
 
     # model details
-    parser.add_argument('--model', type=str, default='expansion',
+    parser.add_argument('--model', type=str, default='expansion_v2',
                         help='model to train')
     parser.add_argument('--n_hiddens', type=int, default=100,
                         help='number of hidden neurons at each layer')

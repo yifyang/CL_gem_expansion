@@ -13,7 +13,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 
 import numpy as np
-import quadprog
+import copy
 
 from .common import MLP, ResNet18
 
@@ -85,7 +85,8 @@ def store_layer_grad(layers, grads_layer, grad_dims_layer, tid, is_cifar):
             cnt += 1
             layer_num += 1
 
-def layer_sort(cos_layer, t, threshold):
+
+def layer_sort(cos_layer, t, threshold, ass):
     """
         This sort the gradient of layers.
         cos_layer: cosine similarity between two tasks at each layer
@@ -93,7 +94,6 @@ def layer_sort(cos_layer, t, threshold):
     """
     layers = len(cos_layer[0])
     layers_cos = [0] * layers
-    ass = [0.5, 0.2]
 
     for i in range(layers):
         temp = torch.sum(torch.sum(cos_layer[:, i], dim=0) / len(cos_layer))
@@ -101,19 +101,19 @@ def layer_sort(cos_layer, t, threshold):
 
     layers_sort_cos, layers_sort = torch.sort(torch.tensor(layers_cos))
 
-    layers_expand = [0] * (layers - 1)
+    layers_expand = [0] * layers
     j = 0
     for i in range(layers):
         if layers_sort[i] == 0:
             continue
         elif layers_cos[layers_sort[i]] > threshold:
-            layers_expand[layers_sort[i] - 1] = 0
+            layers_expand[layers_sort[i]] = 0
             j += 1
             print("layer to expand: " + str(layers_sort[i]) + " ; " + str(0))
             print("cos distance: " + str(layers_sort_cos[i]))
             continue
         else:
-            layers_expand[layers_sort[i] - 1] = ass[j]
+            layers_expand[layers_sort[i]] = ass[j]
             print("layer to expand: " + str(layers_sort[i]) + " ; " + str(ass[j]))
             print("cos distance: " + str(layers_sort_cos[i]))
             j += 1
@@ -138,22 +138,28 @@ class Net(nn.Module):
         else:
             self.net = MLP([n_inputs] + [nh] * nl + [n_outputs])
 
-        self.sel_neuron = [[]] * nl
         self.n_inputs = n_inputs
         self.n_outputs = n_outputs
         self.n_tasks = n_tasks
         self.n_layers = nl
+        self.n_hiddens = nh
 
         self.ce = nn.CrossEntropyLoss()
         self.n_outputs = n_outputs
 
         self.opt = optim.SGD(self.parameters(), args.lr)
+        self.sel_neuron = [[np.arange(n_inputs)] + [np.arange(nh)] * nl + [np.arange(n_outputs)]]
+        self.frz_neuron = [[np.array([])] * (nl + 2)]
 
         self.n_memories = args.n_memories
         self.n_tasks = n_tasks
         self.gpu = args.cuda
         self.lr = args.lr
         self.thre = args.thre
+        self.expand_size = args.expand_size
+
+        self.task_dict = []  # store dict for each task
+        self.neuron_share = []
 
         # allocate episodic memory
         self.memory_data = torch.FloatTensor(
@@ -229,56 +235,111 @@ class Net(nn.Module):
 
     def expand(self, cos_layer, cos_weight, t):
         layers = len(cos_layer[0])
-        layers_expand = layer_sort(cos_layer, t, self.thre)
+        layers_expand = layer_sort(cos_layer, t, self.thre, self.expand_size)
         layer_size = []
-        new_dict = self.state_dict()
-        self.sel_neuron = [[]] * self.n_layers
+        # current_dict = copy.deepcopy(self.state_dict())
+        # self.task_dict.append(current_dict)
+        new_dict = copy.deepcopy(self.state_dict())
 
-        j = 0
+        layer = 0
         weight_sort = []
+        for name, param in self.named_parameters():
+            # expand the number of neurons at each layer
+            param_size = param.size()
+            if 'bias' not in name:
+                # sort gradient of weights at each layer
+                cos_weight[layer] = torch.sum(cos_weight[layer].view(param_size[0], param_size[1]), dim=0)
+                _, temp_sort = torch.sort(cos_weight[layer])
+                sel_sort = []
+                for index in temp_sort:
+                    if index.item() in self.sel_neuron[t-1][layer]:
+                        sel_sort.append(index.item())
+                weight_sort.append(np.array(sel_sort))
+            else:
+                layer += 1
+
+        # Both of testing and training based on continuously expanded network
+        j = 0
         hidden_layer = []
+        share_neuron = []
+        freeze_neuron = []
         pre_x = self.n_inputs
         for name, param in self.named_parameters():
             # expand the number of neurons at each layer
             temp_size = param.size()
             if 'bias' not in name:
-                expand_x, expand_y = temp_size[0], pre_x
                 layer_size.append(temp_size)
-                if j < len(layers_expand):
-                    # expand weights
-                    expand_x = int((layers_expand[j]+1)*temp_size[0])
-                    hidden_layer.append(expand_x)
+                if j == 0:
+                    copy_neuron = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens)])
+                    share_neuron.append(np.arange(self.n_inputs))
+                    freeze_neuron.append((np.array([])))
+                    init_weight = param[copy_neuron, :]
+                    if self.gpu:
+                        init_weight = init_weight.cuda()
+                    new_dict[name] = torch.cat((new_dict[name], init_weight), 0)
+                    new_dict[name][copy_neuron, :] = 0
+                elif j == layer-1:
+                    copy_neuron = np.array(weight_sort[j][:int(layers_expand[j] * self.n_hiddens)])
+                    share_neuron.append(np.arange(self.n_outputs))
+                    freeze_neuron.append((np.array([])))
+                    init_weight = param[:, copy_neuron]
+                    if self.gpu:
+                        init_weight = init_weight.cuda()
+                    new_dict[name] = torch.cat((new_dict[name], init_weight), 1)
+                    new_dict[name][:, copy_neuron] = 0
+                    hidden_layer.append(new_dict[name].shape[1])
+                else:
+                    expand_x, expand_y = int((layers_expand[j+1] + 1) * temp_size[0]), pre_x
+                    hidden_layer.append(expand_y)
+
+                    copy_neuron_y = np.array(weight_sort[j][:int(layers_expand[j] * self.n_hiddens)])
+                    temp_share_neuron = np.append(weight_sort[j][int(layers_expand[j] * self.n_hiddens):],
+                                                  np.arange(temp_size[1], expand_y))
+                    temp_freeze_neuron = np.setdiff1d(np.arange(expand_y), temp_share_neuron)
+                    share_neuron.append(temp_share_neuron)
+                    freeze_neuron.append(temp_freeze_neuron)
+
+                    copy_neuron_x = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens)])
+                    temp_share_neuron = np.append(weight_sort[j + 1][int(layers_expand[j + 1] * self.n_hiddens):],
+                                                  np.arange(temp_size[0], expand_x))
+                    temp_freeze_neuron = np.setdiff1d(np.arange(expand_x), temp_share_neuron)
+                    share_neuron.append(np.array(temp_share_neuron))
+                    freeze_neuron.append(temp_freeze_neuron)
+
                     init_weight = torch.zeros(expand_x, expand_y)
                     if self.gpu:
                         init_weight = init_weight.cuda()
                     torch.nn.init.xavier_normal_(init_weight, gain=1)
-                    init_weight[:temp_size[0], :temp_size[1]] = new_dict[name]
-                    new_dict[name] = nn.Parameter(init_weight)
-
-                    # expand bias
-                    init_bias = torch.zeros(expand_x)
+                    init_weight[:temp_size[0], :temp_size[1]] = param
+                    init_weight[temp_size[0]:, :temp_size[1]] = param[copy_neuron_x, :]
+                    init_weight[:temp_size[0], temp_size[1]:] = param[:, copy_neuron_y]
+                    init_weight[copy_neuron_x, :] = 0
+                    init_weight[:, copy_neuron_y] = 0
+                    new_dict[name] = init_weight
+                pre_x = new_dict[name].shape[0]
+            else:
+                if j == 0:
+                    init_bias = param[copy_neuron]
                     if self.gpu:
                         init_bias = init_bias.cuda()
-                    init_bias[:temp_size[0]] = new_dict[name.replace('weight', 'bias')]
-                    new_dict[name.replace('weight', 'bias')] = \
-                        nn.Parameter(init_bias)
-                    pre_x = expand_x
-                elif j >= len(layers_expand):
-                    init_weight = torch.zeros(expand_x, expand_y)
+                    new_dict[name] = torch.cat((new_dict[name], init_bias), 0)
+                elif j == layer-1:
+                    j += 1
+                    continue
+                else:
+                    init_bias = param[copy_neuron_x]
                     if self.gpu:
-                        init_weight = init_weight.cuda()
-                    torch.nn.init.xavier_normal_(init_weight, gain=1)
-                    init_weight[:temp_size[0], :temp_size[1]] = new_dict[name]
-                    new_dict[name] = nn.Parameter(init_weight)
-
-                # sort gradient of weights at each layer
-                cos_weight[j] = torch.sum(cos_weight[j].view(temp_size[0], temp_size[1]), dim=1)
-                if j < len(layers_expand):
-                    _, temp_sort = torch.sort(cos_weight[j])
-                    weight_sort.append(temp_sort)
+                        init_bias = init_bias.cuda()
+                    new_dict[name] = torch.cat((new_dict[name], init_bias), 0)
                 j += 1
 
-        # select neurons
+        self.sel_neuron.append(share_neuron)
+        self.frz_neuron.append(freeze_neuron)
+
+        self.share(new_dict, t)
+
+        """
+        # select neurons (freeze neurons with low cos_sim)
         for ii in range(layers-1):
             self.sel_neuron[ii] = [False] * int(len(cos_weight[ii])
                                              * (1 + layers_expand[ii]))
@@ -287,6 +348,7 @@ class Net(nn.Module):
                 if jj in weight_sort[ii]:
                     self.sel_neuron[ii][jj] = True
         self.sel_neuron = [[False] * self.n_inputs] + self.sel_neuron + [[False] * self.n_outputs]
+        """
 
         # rebuild the network
         self.net = MLP([self.n_inputs] + hidden_layer + [self.n_outputs])
@@ -296,6 +358,24 @@ class Net(nn.Module):
 
         if self.gpu:
             self.cuda()
+
+
+    def share(self, new_dict, t):
+        current_dict = copy.deepcopy(self.state_dict())
+        self.task_dict.append(current_dict)
+
+        for t_i in range(t):
+            for name in self.task_dict[t_i]:
+                temp_size = new_dict[name].size()
+                pre_size = self.task_dict[t_i][name].size()
+                if 'bias' not in name:
+                    cat_weight = torch.zeros(temp_size[0]-pre_size[0], pre_size[1])
+                    self.task_dict[t_i][name] = torch.cat((self.task_dict[t_i][name], cat_weight), 0)
+                    cat_weight = torch.zeros(temp_size[0], temp_size[1]-pre_size[1])
+                    self.task_dict[t_i][name] = torch.cat((self.task_dict[t_i][name], cat_weight), 1)
+                else:
+                    cat_bias = torch.zeros(temp_size[0]-pre_size[0])
+                    self.task_dict[t_i][name] = torch.cat((self.task_dict[t_i][name], cat_bias), 0)
 
     def update(self, x, t, y):
         # update memory
@@ -324,6 +404,17 @@ class Net(nn.Module):
         offset1, offset2 = compute_offsets(t, self.nc_per_task, self.is_cifar)
         loss = self.ce(self.forward(x, t)[:, offset1: offset2], y - offset1)
         loss.backward()
+
+        # freeze neurons
+        if t > 0:
+            layer = 0
+            for name, param in self.named_parameters():
+                if 'bias' not in name:
+                    param.grad[:, self.frz_neuron[t][layer]] = 0
+                    param.grad[self.frz_neuron[t][layer+1], :] = 0
+                else:
+                    param.grad[self.frz_neuron[t][layer+1]] = 0
+                    layer += 1
 
         self.opt.step()
 
@@ -378,7 +469,7 @@ class Net(nn.Module):
         loss.backward()
 
         # check if gradient violates constraints
-        cos_layers = [[0] * (self.n_tasks - 1)] * len(self.grads_layer) # record cos and return
+        cos_layers = [[0] * (self.n_tasks - 1)] * len(self.grads_layer)  # record cos and return
         cos_weight = []
         if len(self.observed_tasks) > 1:
             # copy gradient
