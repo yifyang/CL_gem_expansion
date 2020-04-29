@@ -289,7 +289,7 @@ class Net(nn.Module):
                     new_dict[name][:, copy_neuron] = 0
                     hidden_layer.append(new_dict[name].shape[1])
                 else:
-                    expand_x, expand_y = int((layers_expand[j+1] + 1) * temp_size[0]), pre_x
+                    expand_x, expand_y = int(layers_expand[j+1] * self.n_hiddens + temp_size[0]), pre_x
                     hidden_layer.append(expand_y)
 
                     copy_neuron_y = np.array(weight_sort[j][:int(layers_expand[j] * self.n_hiddens)])
@@ -300,7 +300,7 @@ class Net(nn.Module):
                     freeze_neuron.append(temp_freeze_neuron)
 
                     copy_neuron_x = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens)])
-                    temp_share_neuron = np.append(weight_sort[j + 1][int(layers_expand[j + 1] * self.n_hiddens):],
+                    temp_share_neuron = np.append(weight_sort[j+1][int(layers_expand[j+1] * self.n_hiddens):],
                                                   np.arange(temp_size[0], expand_x))
                     temp_freeze_neuron = np.setdiff1d(np.arange(expand_x), temp_share_neuron)
                     share_neuron.append(np.array(temp_share_neuron))
@@ -337,18 +337,6 @@ class Net(nn.Module):
         self.frz_neuron.append(freeze_neuron)
 
         self.share(new_dict, t)
-
-        """
-        # select neurons (freeze neurons with low cos_sim)
-        for ii in range(layers-1):
-            self.sel_neuron[ii] = [False] * int(len(cos_weight[ii])
-                                             * (1 + layers_expand[ii]))
-            weight_sort[ii] = weight_sort[ii][:int(layers_expand[ii] * len(cos_weight[ii]))]
-            for jj in range(len(self.sel_neuron[ii])):
-                if jj in weight_sort[ii]:
-                    self.sel_neuron[ii][jj] = True
-        self.sel_neuron = [[False] * self.n_inputs] + self.sel_neuron + [[False] * self.n_outputs]
-        """
 
         # rebuild the network
         self.net = MLP([self.n_inputs] + hidden_layer + [self.n_outputs])

@@ -258,7 +258,7 @@ if __name__ == "__main__":
     # expansion model parameters
     parser.add_argument('--thre', type=float, default=1,
                         help='Threshold to decide expand or not')
-    parser.add_argument('--expand_size', type=float, nargs='+', default=[0.8, 0.4],
+    parser.add_argument('--expand_size', type=float, nargs='+', default=[0.4, 0.2],
                         help='Percent of neurons to expand')
     parser.add_argument('--freeze_all', type=str, default='yes',
                         help='Freeze all neurons from previous task or not')
