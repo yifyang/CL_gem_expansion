@@ -234,7 +234,7 @@ class Net(nn.Module):
         return output
 
     def expand(self, cos_layer, cos_weight, t):
-        layers = len(cos_layer[0])
+        # layers = len(cos_layer[0])
         layers_expand = layer_sort(cos_layer, t, self.thre, self.expand_size)
         layer_size = []
         # current_dict = copy.deepcopy(self.state_dict())
@@ -295,14 +295,16 @@ class Net(nn.Module):
                     copy_neuron_y = np.array(weight_sort[j][:int(layers_expand[j] * self.n_hiddens)])
                     temp_share_neuron = np.append(weight_sort[j][int(layers_expand[j] * self.n_hiddens):],
                                                   np.arange(temp_size[1], expand_y))
-                    temp_freeze_neuron = np.setdiff1d(np.arange(expand_y), temp_share_neuron)
+                    # temp_freeze_neuron = np.setdiff1d(np.arange(expand_y), temp_share_neuron)
+                    temp_freeze_neuron = np.arange(temp_size[1])
                     share_neuron.append(temp_share_neuron)
                     freeze_neuron.append(temp_freeze_neuron)
 
                     copy_neuron_x = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens)])
                     temp_share_neuron = np.append(weight_sort[j+1][int(layers_expand[j+1] * self.n_hiddens):],
                                                   np.arange(temp_size[0], expand_x))
-                    temp_freeze_neuron = np.setdiff1d(np.arange(expand_x), temp_share_neuron)
+                    # temp_freeze_neuron = np.setdiff1d(np.arange(expand_x), temp_share_neuron)
+                    temp_freeze_neuron = np.arange(temp_size[0])
                     share_neuron.append(np.array(temp_share_neuron))
                     freeze_neuron.append(temp_freeze_neuron)
 
