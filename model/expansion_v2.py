@@ -234,11 +234,8 @@ class Net(nn.Module):
         return output
 
     def expand(self, cos_layer, cos_weight, t):
-        # layers = len(cos_layer[0])
         layers_expand = layer_sort(cos_layer, t, self.thre, self.expand_size)
         layer_size = []
-        # current_dict = copy.deepcopy(self.state_dict())
-        # self.task_dict.append(current_dict)
         new_dict = copy.deepcopy(self.state_dict())
 
         layer = 0
@@ -250,6 +247,8 @@ class Net(nn.Module):
                 # sort gradient of weights at each layer
                 cos_weight[layer] = torch.sum(cos_weight[layer].view(param_size[0], param_size[1]), dim=0)
                 _, temp_sort = torch.sort(cos_weight[layer])
+
+                # select neurons used in the last task
                 sel_sort = []
                 for index in temp_sort:
                     if index.item() in self.sel_neuron[t-1][layer]:
@@ -270,6 +269,7 @@ class Net(nn.Module):
             if 'bias' not in name:
                 layer_size.append(temp_size)
                 if j == 0:
+                    # expand the first layer
                     copy_neuron = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens)])
                     share_neuron.append(np.arange(self.n_inputs))
                     freeze_neuron.append((np.array([])))
@@ -279,6 +279,7 @@ class Net(nn.Module):
                     new_dict[name] = torch.cat((new_dict[name], init_weight), 0)
                     new_dict[name][copy_neuron, :] = 0
                 elif j == layer-1:
+                    # expand the last layer
                     copy_neuron = np.array(weight_sort[j][:int(layers_expand[j] * self.n_hiddens)])
                     share_neuron.append(np.arange(self.n_outputs))
                     freeze_neuron.append((np.array([])))
@@ -289,13 +290,14 @@ class Net(nn.Module):
                     new_dict[name][:, copy_neuron] = 0
                     hidden_layer.append(new_dict[name].shape[1])
                 else:
+                    # expand the hidden layers
                     expand_x, expand_y = int(layers_expand[j+1] * self.n_hiddens + temp_size[0]), pre_x
                     hidden_layer.append(expand_y)
 
+                    # select neurons to be activated and frozen for the coming task
                     copy_neuron_y = np.array(weight_sort[j][:int(layers_expand[j] * self.n_hiddens)])
                     temp_share_neuron = np.append(weight_sort[j][int(layers_expand[j] * self.n_hiddens):],
                                                   np.arange(temp_size[1], expand_y))
-                    # temp_freeze_neuron = np.setdiff1d(np.arange(expand_y), temp_share_neuron)
                     temp_freeze_neuron = np.arange(temp_size[1])
                     share_neuron.append(temp_share_neuron)
                     freeze_neuron.append(temp_freeze_neuron)
@@ -303,11 +305,11 @@ class Net(nn.Module):
                     copy_neuron_x = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens)])
                     temp_share_neuron = np.append(weight_sort[j+1][int(layers_expand[j+1] * self.n_hiddens):],
                                                   np.arange(temp_size[0], expand_x))
-                    # temp_freeze_neuron = np.setdiff1d(np.arange(expand_x), temp_share_neuron)
                     temp_freeze_neuron = np.arange(temp_size[0])
                     share_neuron.append(np.array(temp_share_neuron))
                     freeze_neuron.append(temp_freeze_neuron)
 
+                    # expand the layer
                     init_weight = torch.zeros(expand_x, expand_y)
                     if self.gpu:
                         init_weight = init_weight.cuda()
@@ -354,6 +356,7 @@ class Net(nn.Module):
         current_dict = copy.deepcopy(self.state_dict())
         self.task_dict.append(current_dict)
 
+        # update the expanded neurons in previous state_dict(set to be 0)
         for t_i in range(t):
             for name in self.task_dict[t_i]:
                 temp_size = new_dict[name].size()
@@ -484,12 +487,14 @@ class Net(nn.Module):
                                                 dim=0).item())
 
                     # compute the cosine similarity at weight level
-                    task_weight_temp = []
-                    for i in range(num_weights):
-                        task_weight_temp.append(
-                            torch.cosine_similarity(self.grads_layer[layer_num][:, t][i],
-                                                    self.grads_layer[layer_num][:, pre_task][i],
-                                                    dim=0).item())
+                    task_weight_temp = torch.cosine_similarity(self.grads_layer[layer_num][:, t].view(num_weights, 1),
+                                                               self.grads_layer[layer_num][:, pre_task].view(num_weights, 1),
+                                                               dim=1).tolist()
+                    # for i in range(num_weights):
+                    #     task_weight_temp.append(
+                    #         torch.cosine_similarity(self.grads_layer[layer_num][:, t][i],
+                    #                                 self.grads_layer[layer_num][:, pre_task][i],
+                    #                                 dim=0).item())
                     cos_weight_temp += torch.tensor(task_weight_temp)
                 cos_layer_temp += [0] * ((self.n_tasks - 1) - len(cos_layer_temp))
                 cos_layers.append(cos_layer_temp)
