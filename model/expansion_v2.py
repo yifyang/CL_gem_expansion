@@ -363,11 +363,17 @@ class Net(nn.Module):
                 pre_size = self.task_dict[t_i][name].size()
                 if 'bias' not in name:
                     cat_weight = torch.zeros(temp_size[0]-pre_size[0], pre_size[1])
+                    if self.gpu:
+                        cat_weight = cat_weight.cuda
                     self.task_dict[t_i][name] = torch.cat((self.task_dict[t_i][name], cat_weight), 0)
                     cat_weight = torch.zeros(temp_size[0], temp_size[1]-pre_size[1])
+                    if self.gpu:
+                        cat_weight = cat_weight.cuda
                     self.task_dict[t_i][name] = torch.cat((self.task_dict[t_i][name], cat_weight), 1)
                 else:
                     cat_bias = torch.zeros(temp_size[0]-pre_size[0])
+                    if self.gpu:
+                        cat_bias = cat_bias.cuda
                     self.task_dict[t_i][name] = torch.cat((self.task_dict[t_i][name], cat_bias), 0)
 
     def update(self, x, t, y):
