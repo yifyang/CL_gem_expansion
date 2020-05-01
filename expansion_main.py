@@ -181,6 +181,7 @@ def life_experience(model, continuum, x_te, args):
             cos_layer = []
             current_task = t
             observe = 1
+            observe_time = []
 
             print("start training task " + str(t))
 
@@ -192,6 +193,7 @@ def life_experience(model, continuum, x_te, args):
             cos_layer = torch.tensor(cos_layer)
             if args.cuda:
                 cos_layer = cos_layer.cuda()
+            print("Observe Time: ", np.mean(observe_time))
             model.expand(cos_layer, cos_weight, t)
             observe = 0
             if args.cuda:
@@ -211,7 +213,7 @@ def life_experience(model, continuum, x_te, args):
             model.train()
             start = time.time()
             temp_layer, temp_weight = model.observe(Variable(v_x), t, Variable(v_y))
-            print("Observe Time: ", time.time()-start)
+            observe_time.append(time.time()-start)
             cos_layer.append(temp_layer)
             if cos_weight == []:
                 cos_weight = temp_weight
