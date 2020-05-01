@@ -209,7 +209,9 @@ def life_experience(model, continuum, x_te, args):
 
         if observe and t > 0:
             model.train()
+            start = time.time()
             temp_layer, temp_weight = model.observe(Variable(v_x), t, Variable(v_y))
+            print("Observe Time: ", time.time()-start)
             cos_layer.append(temp_layer)
             if cos_weight == []:
                 cos_weight = temp_weight
