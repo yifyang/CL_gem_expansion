@@ -157,7 +157,7 @@ def life_experience(model, continuum, x_te, args):
     cos_weight = []
 
     current_task = 0
-    batch_per_task = int(args.samples_per_task / args.batch_size)
+    batch_per_task = int(args.samples_per_task * args.n_epochs / args.batch_size)
     observe_batch = int(0.05 * batch_per_task)
     observe = 1
     temp_total_task = 6
@@ -242,7 +242,7 @@ if __name__ == "__main__":
     parser.add_argument('--finetune', default='yes', type=str, help='whether to initialize nets in indep. nets')
 
     # optimizer parameters influencing all models
-    parser.add_argument('--n_epochs', type=int, default=1,
+    parser.add_argument('--n_epochs', type=int, default=2,
                         help='Number of epochs per task')
     parser.add_argument('--batch_size', type=int, default=1,
                         help='the amount of items received by the algorithm at one time (set to 1 across all experiments). Variable name is from GEM project.')
