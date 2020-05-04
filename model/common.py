@@ -22,7 +22,7 @@ cfg = {
 
 class VGG(nn.Module):
 
-    def __init__(self, features, num_class=100):
+    def __init__(self, features, expand_rate, num_class=100):
         super().__init__()
         self.features = features
 
@@ -37,14 +37,15 @@ class VGG(nn.Module):
         )
 
     def forward(self, x):
-        output = self.features(x)
+        bsz = x.size(0)
+        output = self.features(x.view(bsz, 3, 32, 32))
         output = output.view(output.size()[0], -1)
         output = self.classifier(output)
 
         return output
 
 
-def make_layers(cfg, batch_norm=False):
+def make_layers(cfg, expand_rate, batch_norm=False):
     layers = []
 
     input_channel = 3
@@ -53,6 +54,7 @@ def make_layers(cfg, batch_norm=False):
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             continue
 
+        l += int(l * expand_rate)
         layers += [nn.Conv2d(input_channel, l, kernel_size=3, padding=1)]
 
         if batch_norm:
@@ -64,8 +66,8 @@ def make_layers(cfg, batch_norm=False):
     return nn.Sequential(*layers)
 
 
-def vgg11_bn():
-    return VGG(make_layers(cfg['A'], batch_norm=True))
+def vgg11_bn(expand_rate=0):
+    return VGG(make_layers(cfg['A'], expand_rate, batch_norm=True), expand_rate)
 
 
 def vgg13_bn():
@@ -78,6 +80,8 @@ def vgg16_bn():
 
 def vgg19_bn():
     return VGG(make_layers(cfg['E'], batch_norm=True))
+
+
 
 def Xavier(m):
     if m.__class__.__name__ == 'Linear':

@@ -15,7 +15,7 @@ from torch.autograd import Variable
 import numpy as np
 import quadprog
 
-from .common import MLP, ResNet18
+from .common import MLP, ResNet18, vgg11_bn
 
 # Auxiliary functions useful for GEM's inner optimization.
 
@@ -60,6 +60,18 @@ def store_layer_grad(layers, grads_layer, grad_dims_layer, tid, is_cifar):
         grad_dims_layer: list with number of parameters per layers
         tid: task id
     """
+    layer_num = 0
+    for param in layers:
+        grads_layer[layer_num][:, tid].fill_(0.0)
+        cnt = 0
+        if param.grad is not None:
+            beg = 0 if cnt == 0 else sum(grad_dims_layer[layer_num][:cnt])
+            en = sum(grad_dims_layer[layer_num][:cnt + 1])
+            grads_layer[layer_num][beg: en, tid].copy_(param.grad.data.view(-1))
+        cnt += 1
+        layer_num += 1
+
+    """
     if is_cifar:
         layer_num = 0
         for layer in layers:
@@ -74,7 +86,7 @@ def store_layer_grad(layers, grads_layer, grad_dims_layer, tid, is_cifar):
             layer_num += 1
     else:
         layer_num = 0
-        for param in layers():
+        for param in layers:
             grads_layer[layer_num][:, tid].fill_(0.0)
             cnt = 0
             if param.grad is not None:
@@ -83,6 +95,7 @@ def store_layer_grad(layers, grads_layer, grad_dims_layer, tid, is_cifar):
                 grads_layer[layer_num][beg: en, tid].copy_(param.grad.data.view(-1))
             cnt += 1
             layer_num += 1
+    """
 
 
 def overwrite_grad(pp, newgrad, grad_dims):
@@ -139,7 +152,8 @@ class Net(nn.Module):
                          args.data_file == 'cifar100_20.pt' or
                          args.data_file == 'cifar100_20_o.pt')
         if self.is_cifar:
-            self.net = ResNet18(n_outputs)
+            self.net = vgg11_bn()
+            # self.net = ResNet18(n_outputs)
         else:
             self.net = MLP([n_inputs] + [nh] * nl + [n_outputs])
 
@@ -165,6 +179,22 @@ class Net(nn.Module):
         for param in self.parameters():
             self.grad_dims.append(param.data.numel())
         self.grads = torch.Tensor(sum(self.grad_dims), n_tasks)
+
+        self.for_layer = []
+        self.grad_dims_layer = []
+        layer_num = 0
+        self.grads_layer = []
+        for name, param in self.named_parameters():
+            if 'bias' not in name and len(param.size()) > 1:
+                self.for_layer.append(param)
+        for param in self.for_layer:
+            self.grad_dims_layer.append([param.data.numel()])
+            self.grads_layer.append(torch.Tensor(sum(self.grad_dims_layer[layer_num]), self.n_tasks))
+            if self.gpu:
+                self.grads_layer[-1] = self.grads_layer[-1].cuda()
+            layer_num += 1
+
+        """
         if self.is_cifar:
             layers = [self.net.layer1, self.net.layer2, self.net.layer3, self.net.layer4]
             self.for_layer = layers
@@ -190,6 +220,7 @@ class Net(nn.Module):
                 if args.cuda:
                     self.grads_layer[-1] = self.grads_layer[-1].cuda()
                 layer_num += 1
+        """
 
         if args.cuda:
             self.grads = self.grads.cuda()
@@ -218,7 +249,7 @@ class Net(nn.Module):
                 output[:, offset2:self.n_outputs].data.fill_(-10e10)
         return output
 
-    def observe(self, x, t, y):
+    def update(self, x, t, y):
         # update memory
         if t != self.old_task:
             self.observed_tasks.append(t)
@@ -290,12 +321,6 @@ class Net(nn.Module):
                                                 dim=0).item())
                 dotp_layer_temp += [0] * ((self.n_tasks - 1) - len(dotp_layer_temp))
                 dotp_layers.append(dotp_layer_temp)
-                """
-                dotp_layer_temp = torch.mm(self.grads_layer[layer_num][:, t].unsqueeze(0),
-                            self.grads_layer[layer_num].index_select(1, indx)).tolist()[0]
-                dotp_layer_temp += [0] * ((self.n_tasks-1) - len(dotp_layer_temp))
-                dotp_layers.append(dotp_layer_temp)
-                """
 
             if (dotp < 0).sum() != 0:
                 project2cone2(self.grads[:, t].unsqueeze(1),
@@ -306,4 +331,4 @@ class Net(nn.Module):
 
         self.opt.step()
 
-        return dotp_layers
+        return loss

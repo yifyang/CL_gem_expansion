@@ -119,7 +119,7 @@ def eval_tasks(model, tasks, args):
         x = task[1]
         y = task[2]
         rt = 0
-        if t < len(model.task_dict):
+        if 'expansion' in args.model and t < len(model.task_dict):
             model.load_state_dict(model.task_dict[t])
         else:
             model.load_state_dict(current_dict)
@@ -189,7 +189,8 @@ def life_experience(model, continuum, x_te, args):
             result_a.append(eval_tasks(model, x_te, args)[:temp_total_task+1])
             result_t.append(current_task)
 
-        if (i == batch_per_task * t + observe_batch) and t > 0:
+        if 'expansion' in args.model \
+                and (i == batch_per_task * t + observe_batch) and t > 0:
             cos_layer = torch.tensor(cos_layer)
             if args.cuda:
                 cos_layer = cos_layer.cuda()
@@ -209,7 +210,7 @@ def life_experience(model, continuum, x_te, args):
             v_x = v_x.cuda()
             v_y = v_y.cuda()
 
-        if observe and t > 0:
+        if 'expansion' in args.model and observe and t > 0:
             model.train()
             start = time.time()
             temp_layer, temp_weight = model.observe(Variable(v_x), t, Variable(v_y))
@@ -237,7 +238,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Continuum learning')
 
     # model details
-    parser.add_argument('--model', type=str, default='expansion_v2',
+    parser.add_argument('--model', type=str, default='gem',
                         help='model to train')
     parser.add_argument('--n_hiddens', type=int, default=100,
                         help='number of hidden neurons at each layer')
@@ -280,7 +281,7 @@ if __name__ == "__main__":
     # data parameters
     parser.add_argument('--data_path', default='data/',
                         help='path where data is located')
-    parser.add_argument('--data_file', default='mnist_permutations.pt',
+    parser.add_argument('--data_file', default='cifar100_20_o.pt',
                         help='data file')
     parser.add_argument('--samples_per_task', type=int, default=100,
                         help='training samples per task (all if negative)')

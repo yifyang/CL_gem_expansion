@@ -15,7 +15,7 @@ from torch.autograd import Variable
 import numpy as np
 import copy
 
-from .common import MLP, ResNet18
+from .common import MLP, ResNet18, vgg11_bn
 
 
 # Auxiliary functions useful for GEM's inner optimization.
@@ -61,6 +61,18 @@ def store_layer_grad(layers, grads_layer, grad_dims_layer, tid, is_cifar):
         grad_dims_layer: list with number of parameters per layers
         tid: task id
     """
+    layer_num = 0
+    for param in layers:
+        grads_layer[layer_num][:, tid].fill_(0.0)
+        cnt = 0
+        if param.grad is not None:
+            beg = 0 if cnt == 0 else sum(grad_dims_layer[layer_num][:cnt])
+            en = sum(grad_dims_layer[layer_num][:cnt + 1])
+            grads_layer[layer_num][beg: en, tid].copy_(param.grad.data.view(-1))
+        cnt += 1
+        layer_num += 1
+
+    """
     if is_cifar:
         layer_num = 0
         for layer in layers:
@@ -84,6 +96,7 @@ def store_layer_grad(layers, grads_layer, grad_dims_layer, tid, is_cifar):
                 grads_layer[layer_num][beg: en, tid].copy_(param.grad.data.view(-1))
             cnt += 1
             layer_num += 1
+    """
 
 
 def layer_sort(cos_layer, t, threshold, ass):
@@ -134,7 +147,8 @@ class Net(nn.Module):
                          args.data_file == 'cifar100_20.pt' or
                          args.data_file == 'cifar100_20_o.pt')
         if self.is_cifar:
-            self.net = ResNet18(n_outputs)
+            self.net = vgg11_bn()
+            # self.net = ResNet18(n_outputs)
         else:
             self.net = MLP([n_inputs] + [nh] * nl + [n_outputs])
 
@@ -189,6 +203,7 @@ class Net(nn.Module):
         for param in self.parameters():
             self.grad_dims.append(param.data.numel())
         self.grads = torch.Tensor(sum(self.grad_dims), self.n_tasks)
+        """
         if self.is_cifar:
             layers = [self.net.layer1, self.net.layer2, self.net.layer3, self.net.layer4]
             self.for_layer = layers
@@ -209,14 +224,28 @@ class Net(nn.Module):
             layer_num = 0
             self.grads_layer = []
             for name, param in self.named_parameters():
-                if 'bias' not in name:
+                if 'bias' not in name: 
                     self.for_layer.append(param)
-            for param in self.for_layer:
-                self.grad_dims_layer.append([param.data.numel()])
-                self.grads_layer.append(torch.Tensor(sum(self.grad_dims_layer[layer_num]), self.n_tasks))
-                if self.gpu:
-                    self.grads_layer[-1] = self.grads_layer[-1].cuda()
-                layer_num += 1
+                    self.grad_dims_layer.append([param.data.numel()])
+                    self.grads_layer.append(torch.Tensor(sum(self.grad_dims_layer[layer_num]), self.n_tasks))
+                    if self.gpu:
+                        self.grads_layer[-1] = self.grads_layer[-1].cuda()
+                    layer_num += 1
+        """
+
+        self.for_layer = []
+        self.grad_dims_layer = []
+        layer_num = 0
+        self.grads_layer = []
+        for name, param in self.named_parameters():
+            if 'bias' not in name and len(param.size()) > 1:
+                self.for_layer.append(param)
+        for param in self.for_layer:
+            self.grad_dims_layer.append([param.data.numel()])
+            self.grads_layer.append(torch.Tensor(sum(self.grad_dims_layer[layer_num]), self.n_tasks))
+            if self.gpu:
+                self.grads_layer[-1] = self.grads_layer[-1].cuda()
+            layer_num += 1
 
         if self.gpu:
             self.grads = self.grads.cuda()
@@ -496,11 +525,6 @@ class Net(nn.Module):
                     task_weight_temp = torch.cosine_similarity(self.grads_layer[layer_num][:, t].view(num_weights, 1),
                                                                self.grads_layer[layer_num][:, pre_task].view(num_weights, 1),
                                                                dim=1).tolist()
-                    # for i in range(num_weights):
-                    #     task_weight_temp.append(
-                    #         torch.cosine_similarity(self.grads_layer[layer_num][:, t][i],
-                    #                                 self.grads_layer[layer_num][:, pre_task][i],
-                    #                                 dim=0).item())
                     cos_weight_temp += torch.tensor(task_weight_temp)
                 cos_layer_temp += [0] * ((self.n_tasks - 1) - len(cos_layer_temp))
                 cos_layers.append(cos_layer_temp)
