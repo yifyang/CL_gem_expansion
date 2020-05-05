@@ -160,7 +160,7 @@ def life_experience(model, continuum, x_te, args):
     batch_per_task = int(args.samples_per_task * args.n_epochs / args.batch_size)
     observe_batch = int(0.05 * batch_per_task)
     observe = 1
-    temp_total_task = 6
+    temp_total_task = args.task_num
 
     time_start = time.time()
 
@@ -267,6 +267,8 @@ if __name__ == "__main__":
                         help='Percent of neurons to expand')
     parser.add_argument('--freeze_all', type=str, default='yes',
                         help='Freeze all neurons from previous task or not')
+    parser.add_argument('--task_num', type=int, default=6,
+                        help='Number of tasks to observe')
 
     # experiment parameters
     parser.add_argument('--cuda', type=str, default='no',

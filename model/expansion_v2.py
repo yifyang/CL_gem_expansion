@@ -402,6 +402,8 @@ class Net(nn.Module):
                         init_bias = init_bias.cuda()
                     new_dict[name] = torch.cat((new_dict[name], init_bias), 0)
 
+        del init_weight, init_bias
+
         self.sel_neuron.append(share_neuron)
         self.frz_neuron.append(freeze_neuron)
 
