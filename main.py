@@ -166,7 +166,6 @@ def life_experience(model, continuum, x_te, args):
 
     for (i, (x, t, y)) in enumerate(continuum):
         if t != current_task:
-            # model.share(args.freeze_all)
             temp_acc = eval_tasks(model, x_te, args)[:temp_total_task+1]
             for pre_t in range(t):
                 print("accuracy of task " + str(pre_t) + " is: " + str(temp_acc[pre_t].item()))
@@ -226,7 +225,8 @@ def life_experience(model, continuum, x_te, args):
 
     result_a.append(eval_tasks(model, x_te, args)[:temp_total_task+1])
     result_t.append(current_task)
-    result_l[0] = result_l[0][observe_batch:] # hot fix
+    if 'expansion' in args.model:
+        result_l[0] = result_l[0][observe_batch:] # hot fix
 
     time_end = time.time()
     time_spent = time_end - time_start
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Continuum learning')
 
     # model details
-    parser.add_argument('--model', type=str, default='gem',
+    parser.add_argument('--model', type=str, default='expansion_v2',
                         help='model to train')
     parser.add_argument('--n_hiddens', type=int, default=100,
                         help='number of hidden neurons at each layer')
@@ -281,9 +281,9 @@ if __name__ == "__main__":
     # data parameters
     parser.add_argument('--data_path', default='data/',
                         help='path where data is located')
-    parser.add_argument('--data_file', default='cifar100_20_o.pt',
+    parser.add_argument('--data_file', default='mnist_permutations.pt',
                         help='data file')
-    parser.add_argument('--samples_per_task', type=int, default=100,
+    parser.add_argument('--samples_per_task', type=int, default=50,
                         help='training samples per task (all if negative)')
     parser.add_argument('--shuffle_tasks', type=str, default='no',
                         help='present tasks in order')

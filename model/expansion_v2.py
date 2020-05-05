@@ -126,8 +126,12 @@ def layer_sort(cos_layer, t, threshold, ass):
             print("cos distance: " + str(layers_sort_cos[i]))
             continue
         else:
-            layers_expand[layers_sort[i]] = ass[j]
-            print("layer to expand: " + str(layers_sort[i]) + " ; " + str(ass[j]))
+            if type(ass) is not list:
+                layers_expand[layers_sort[i]] = ass
+                print("layer to expand: " + str(layers_sort[i]) + " ; " + str(ass))
+            else:
+                layers_expand[layers_sort[i]] = ass[j]
+                print("layer to expand: " + str(layers_sort[i]) + " ; " + str(ass[j]))
             print("cos distance: " + str(layers_sort_cos[i]))
             j += 1
 
@@ -155,22 +159,25 @@ class Net(nn.Module):
         self.n_inputs = n_inputs
         self.n_outputs = n_outputs
         self.n_tasks = n_tasks
-        self.n_layers = nl
-        self.n_hiddens = nh
+        self.n_hiddens = []
+        for param in self.parameters():
+            if len(param.size()) > 1:
+                self.n_hiddens.append(param.size()[1])
 
         self.ce = nn.CrossEntropyLoss()
         self.n_outputs = n_outputs
 
         self.opt = optim.SGD(self.parameters(), args.lr)
-        self.sel_neuron = [[np.arange(n_inputs)] + [np.arange(nh)] * nl + [np.arange(n_outputs)]]
-        self.frz_neuron = [[np.array([])] * (nl + 2)]
 
         self.n_memories = args.n_memories
         self.n_tasks = n_tasks
         self.gpu = args.cuda
         self.lr = args.lr
         self.thre = args.thre
-        self.expand_size = args.expand_size
+        if self.is_cifar:
+            self.expand_size = 0.2
+        else:
+            self.expand_size = args.expand_size
 
         self.task_dict = []  # store dict for each task
         self.neuron_share = []
@@ -184,6 +191,12 @@ class Net(nn.Module):
             self.memory_labs = self.memory_labs.cuda()
 
         self.allocate()
+        self.sel_neuron = [[]]
+        self.frz_neuron = [[np.array([])] * (len(self.for_layer) + 1)]
+        for param in self.for_layer:
+            param_size = param.size()
+            self.sel_neuron[0].append(np.arange(param_size[1]))
+        self.sel_neuron[0] += [np.arange(n_outputs)]
 
         # allocate counters
         self.observed_tasks = []
@@ -272,9 +285,14 @@ class Net(nn.Module):
         for name, param in self.named_parameters():
             # expand the number of neurons at each layer
             param_size = param.size()
-            if 'bias' not in name:
+            if 'bias' not in name and len(param_size) > 1:
                 # sort gradient of weights at each layer
-                cos_weight[layer] = torch.sum(cos_weight[layer].view(param_size[0], param_size[1]), dim=0)
+                if len(param_size) > 2:
+                    temp_weight = torch.sum(cos_weight[layer].view(param_size), dim=0)
+                    temp_weight = torch.sum(temp_weight, dim=1)
+                    cos_weight[layer] = torch.sum(temp_weight, dim=1)
+                else:
+                    cos_weight[layer] = torch.sum(cos_weight[layer].view(param_size), dim=0)
                 _, temp_sort = torch.sort(cos_weight[layer])
 
                 # select neurons used in the last task
@@ -283,80 +301,99 @@ class Net(nn.Module):
                     if index.item() in self.sel_neuron[t-1][layer]:
                         sel_sort.append(index.item())
                 weight_sort.append(np.array(sel_sort))
-            else:
                 layer += 1
 
         # Both of testing and training based on continuously expanded network
-        j = 0
-        hidden_layer = []
+        j = -1
+        hidden_layer_linear = []
+        hidden_layer_conv = []
         share_neuron = []
         freeze_neuron = []
         pre_x = self.n_inputs
-        for name, param in self.named_parameters():
+        # for name, param in self.named_parameters():
+        for name in new_dict:
+            param = new_dict[name]
             # expand the number of neurons at each layer
-            temp_size = param.size()
-            if 'bias' not in name:
-                layer_size.append(temp_size)
+            param_size = param.size()
+            if 'num_batches_tracked' in name:
+                continue
+            elif 'bias' not in name and len(param_size) > 1:
+                j += 1
+                layer_size.append(param_size)
                 if j == 0:
                     # expand the first layer
-                    copy_neuron = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens)])
+                    copy_neuron_x = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])])
                     share_neuron.append(np.arange(self.n_inputs))
                     freeze_neuron.append((np.array([])))
-                    init_weight = param[copy_neuron, :]
+
+                    init_weight = param[copy_neuron_x, :]
                     if self.gpu:
                         init_weight = init_weight.cuda()
                     new_dict[name] = torch.cat((new_dict[name], init_weight), 0)
-                    new_dict[name][copy_neuron, :] = 0
+                    new_dict[name][copy_neuron_x, :] = 0
                 elif j == layer-1:
                     # expand the last layer
-                    copy_neuron = np.array(weight_sort[j][:int(layers_expand[j] * self.n_hiddens)])
-                    share_neuron.append(np.arange(self.n_outputs))
-                    freeze_neuron.append((np.array([])))
-                    init_weight = param[:, copy_neuron]
-                    if self.gpu:
-                        init_weight = init_weight.cuda()
-                    new_dict[name] = torch.cat((new_dict[name], init_weight), 1)
-                    new_dict[name][:, copy_neuron] = 0
-                    hidden_layer.append(new_dict[name].shape[1])
-                else:
-                    # expand the hidden layers
-                    expand_x, expand_y = int(layers_expand[j+1] * self.n_hiddens + temp_size[0]), pre_x
-                    hidden_layer.append(expand_y)
-
-                    # select neurons to be activated and frozen for the coming task
-                    copy_neuron_y = np.array(weight_sort[j][:int(layers_expand[j] * self.n_hiddens)])
-                    temp_share_neuron = np.append(weight_sort[j][int(layers_expand[j] * self.n_hiddens):],
-                                                  np.arange(temp_size[1], expand_y))
-                    temp_freeze_neuron = np.arange(temp_size[1])
-                    share_neuron.append(temp_share_neuron)
-                    freeze_neuron.append(temp_freeze_neuron)
-
-                    copy_neuron_x = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens)])
-                    temp_share_neuron = np.append(weight_sort[j+1][int(layers_expand[j+1] * self.n_hiddens):],
-                                                  np.arange(temp_size[0], expand_x))
-                    temp_freeze_neuron = np.arange(temp_size[0])
+                    copy_neuron_y = np.array(weight_sort[j][:int(layers_expand[j] * self.n_hiddens[j])])
+                    temp_share_neuron = np.append(
+                        weight_sort[j][int(layers_expand[j] * self.n_hiddens[j]):],
+                        np.arange(param_size[0], pre_x))
+                    temp_freeze_neuron = np.arange(param_size[0])
                     share_neuron.append(np.array(temp_share_neuron))
                     freeze_neuron.append(temp_freeze_neuron)
 
+                    share_neuron.append(np.arange(self.n_outputs))
+                    freeze_neuron.append((np.array([])))
+
+                    init_weight = param[:, copy_neuron_y]
+                    if self.gpu:
+                        init_weight = init_weight.cuda()
+                    new_dict[name] = torch.cat((new_dict[name], init_weight), 1)
+                    new_dict[name][:, copy_neuron_y] = 0
+
+                    if self.is_cifar and 'features' in name:
+                        hidden_layer_conv.append(expand_y)
+                    elif self.is_cifar and 'classifier' in name:
+                        hidden_layer_linear.append(expand_y)
+                    else:
+                        hidden_layer_linear.append(new_dict[name].shape[1])
+                else:
+                    # expand the hidden layers
+                    expand_x, expand_y = int(layers_expand[j+1] * self.n_hiddens[j+1] + param_size[0]), pre_x
+                    if self.is_cifar and 'features' in name:
+                        hidden_layer_conv.append(expand_y)
+                    elif self.is_cifar and 'classifier' in name:
+                        hidden_layer_linear.append(expand_y)
+                    else:
+                        hidden_layer_linear.append(expand_y)
+
+                    # select neurons to be activated and frozen for the coming task
+                    copy_neuron_y = np.array(weight_sort[j][:int(layers_expand[j] * self.n_hiddens[j])])
+                    temp_share_neuron = np.append(
+                        weight_sort[j][int(layers_expand[j] * self.n_hiddens[j]):],
+                        np.arange(param_size[1], expand_y))
+                    temp_freeze_neuron = np.arange(param_size[1])
+                    share_neuron.append(temp_share_neuron)
+                    freeze_neuron.append(temp_freeze_neuron)
+
+                    copy_neuron_x = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])])
+
                     # expand the layer
-                    init_weight = torch.zeros(expand_x, expand_y)
+                    expand_size = list(param_size)
+                    expand_size[0] = expand_x
+                    expand_size[1] = expand_y
+                    init_weight = torch.zeros(expand_size)
                     if self.gpu:
                         init_weight = init_weight.cuda()
                     torch.nn.init.xavier_normal_(init_weight, gain=1)
-                    init_weight[:temp_size[0], :temp_size[1]] = param
-                    init_weight[temp_size[0]:, :temp_size[1]] = param[copy_neuron_x, :]
-                    init_weight[:temp_size[0], temp_size[1]:] = param[:, copy_neuron_y]
+                    init_weight[:param_size[0], :param_size[1]] = param
+                    init_weight[param_size[0]:, :param_size[1]] = param[copy_neuron_x, :]
+                    init_weight[:param_size[0], param_size[1]:] = param[:, copy_neuron_y]
                     init_weight[copy_neuron_x, :] = 0
                     init_weight[:, copy_neuron_y] = 0
                     new_dict[name] = init_weight
                 pre_x = new_dict[name].shape[0]
             else:
-                if j == 0:
-                    init_bias = param[copy_neuron]
-                    if self.gpu:
-                        init_bias = init_bias.cuda()
-                    new_dict[name] = torch.cat((new_dict[name], init_bias), 0)
-                elif j == layer-1:
+                if j == layer-1:
                     j += 1
                     continue
                 else:
@@ -364,7 +401,6 @@ class Net(nn.Module):
                     if self.gpu:
                         init_bias = init_bias.cuda()
                     new_dict[name] = torch.cat((new_dict[name], init_bias), 0)
-                j += 1
 
         self.sel_neuron.append(share_neuron)
         self.frz_neuron.append(freeze_neuron)
@@ -372,7 +408,11 @@ class Net(nn.Module):
         self.share(new_dict, t)
 
         # rebuild the network
-        self.net = MLP([self.n_inputs] + hidden_layer + [self.n_outputs])
+        if self.is_cifar:
+            self.net = vgg11_bn(hidden_layer_linear,
+                                hidden_layer_conv+[hidden_layer_conv[-1]])
+        else:
+            self.net = MLP([self.n_inputs] + hidden_layer_linear + [self.n_outputs])
         self.load_state_dict(new_dict)
         self.opt = optim.SGD(self.parameters(), self.lr)
         self.allocate()
@@ -388,19 +428,30 @@ class Net(nn.Module):
         # update the expanded neurons in previous state_dict(set to be 0)
         for t_i in range(t):
             for name in self.task_dict[t_i]:
-                temp_size = new_dict[name].size()
+                param_size = new_dict[name].size()
                 pre_size = self.task_dict[t_i][name].size()
-                if 'bias' not in name:
-                    cat_weight = torch.zeros(temp_size[0]-pre_size[0], pre_size[1])
+                if 'num_batches_tracked' in name:
+                    continue
+                elif 'bias' not in name and len(param_size) > 1:
+                    if len(param_size) > 2:
+                        cat_weight = torch.zeros(param_size[0]-pre_size[0], pre_size[1],
+                                                 pre_size[2], pre_size[3])
+                    else:
+                        cat_weight = torch.zeros(param_size[0]-pre_size[0], pre_size[1])
                     if self.gpu:
                         cat_weight = cat_weight.cuda()
                     self.task_dict[t_i][name] = torch.cat((self.task_dict[t_i][name], cat_weight), 0)
-                    cat_weight = torch.zeros(temp_size[0], temp_size[1]-pre_size[1])
+
+                    if len(param_size) > 2:
+                        cat_weight = torch.zeros(param_size[0], param_size[1]-pre_size[1],
+                                                 pre_size[2], pre_size[3])
+                    else:
+                        cat_weight = torch.zeros(param_size[0], param_size[1]-pre_size[1])
                     if self.gpu:
                         cat_weight = cat_weight.cuda()
                     self.task_dict[t_i][name] = torch.cat((self.task_dict[t_i][name], cat_weight), 1)
                 else:
-                    cat_bias = torch.zeros(temp_size[0]-pre_size[0])
+                    cat_bias = torch.zeros(param_size[0]-pre_size[0])
                     if self.gpu:
                         cat_bias = cat_bias.cuda()
                     self.task_dict[t_i][name] = torch.cat((self.task_dict[t_i][name], cat_bias), 0)
@@ -435,14 +486,14 @@ class Net(nn.Module):
 
         # freeze neurons
         if t > 0:
-            layer = 0
+            layer = -1
             for name, param in self.named_parameters():
-                if 'bias' not in name:
+                if 'bias' not in name and len(param.size()) > 1:
+                    layer += 1
                     param.grad[:, self.frz_neuron[t][layer]] = 0
                     param.grad[self.frz_neuron[t][layer+1], :] = 0
                 else:
                     param.grad[self.frz_neuron[t][layer+1]] = 0
-                    layer += 1
 
         self.opt.step()
 

@@ -14,26 +14,28 @@ from torch.nn.functional import relu, avg_pool2d
 
 cfg = {
     'A' : [64,     'M', 128,      'M', 256, 256,           'M', 512, 512,           'M', 512, 512,           'M'],
+    # 'A' : [8,     'M', 16,      'M', 32, 32,           'M', 64, 64,           'M', 64, 64,           'M'],
     'B' : [64, 64, 'M', 128, 128, 'M', 256, 256,           'M', 512, 512,           'M', 512, 512,           'M'],
     'D' : [64, 64, 'M', 128, 128, 'M', 256, 256, 256,      'M', 512, 512, 512,      'M', 512, 512, 512,      'M'],
     'E' : [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M']
 }
-
+hid_linear = [512, 4096, 4096]
+# hid_linear = [64, 128, 128]
 
 class VGG(nn.Module):
 
-    def __init__(self, features, expand_rate, num_class=100):
+    def __init__(self, features, layer_linear=hid_linear, num_class=100):
         super().__init__()
         self.features = features
 
         self.classifier = nn.Sequential(
-            nn.Linear(512, 4096),
+            nn.Linear(layer_linear[0], layer_linear[1]),
             nn.ReLU(inplace=True),
             nn.Dropout(),
-            nn.Linear(4096, 4096),
+            nn.Linear(layer_linear[1], layer_linear[2]),
             nn.ReLU(inplace=True),
             nn.Dropout(),
-            nn.Linear(4096, num_class)
+            nn.Linear(layer_linear[2], num_class)
         )
 
     def forward(self, x):
@@ -45,7 +47,7 @@ class VGG(nn.Module):
         return output
 
 
-def make_layers(cfg, expand_rate, batch_norm=False):
+def make_layers(cfg, batch_norm=False):
     layers = []
 
     input_channel = 3
@@ -54,7 +56,6 @@ def make_layers(cfg, expand_rate, batch_norm=False):
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             continue
 
-        l += int(l * expand_rate)
         layers += [nn.Conv2d(input_channel, l, kernel_size=3, padding=1)]
 
         if batch_norm:
@@ -65,9 +66,25 @@ def make_layers(cfg, expand_rate, batch_norm=False):
 
     return nn.Sequential(*layers)
 
+def make_cfg11(hid_layer_conv, stand=cfg['A']):
+    if 'M' in hid_layer_conv:
+        return hid_layer_conv
+    new_layer_conv = []
+    i = 0
 
-def vgg11_bn(expand_rate=0):
-    return VGG(make_layers(cfg['A'], expand_rate, batch_norm=True), expand_rate)
+    for item in stand:
+        if item != 'M':
+            new_layer_conv.append(hid_layer_conv[i])
+            i += 1
+        else:
+            new_layer_conv.append('M')
+
+    return new_layer_conv
+
+def vgg11_bn(hid_layer_linear=hid_linear, hid_layer_conv=cfg['A']):
+    hid_layer_conv = make_cfg11(hid_layer_conv, cfg['A'])
+    return VGG(make_layers(hid_layer_conv, batch_norm=True),
+               layer_linear=hid_layer_linear)
 
 
 def vgg13_bn():
