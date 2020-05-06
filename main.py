@@ -352,5 +352,4 @@ if __name__ == "__main__":
     print(fname + ': ' + one_liner + ' # ' + str(spent_time))
 
     # save all results in binary file
-    torch.save((result_t, result_a, result_l, model.state_dict(),
-                stats, one_liner, args), fname + '.pt')
+    torch.save((result_t, result_a, result_l, stats, one_liner, args), fname + '.pt')
