@@ -122,18 +122,19 @@ def layer_sort(cos_layer, t, threshold, ass):
         elif layers_cos[layers_sort[i]] > threshold:
             layers_expand[layers_sort[i]] = 0
             j += 1
-            print("layer to expand: " + str(layers_sort[i]) + " ; " + str(0))
-            print("cos distance: " + str(layers_sort_cos[i]))
             continue
         else:
-            if type(ass) is not list:
+            if type(ass) is not list: # assign the same expanding rate to layers
                 layers_expand[layers_sort[i]] = ass
-                print("layer to expand: " + str(layers_sort[i]) + " ; " + str(ass))
             else:
                 layers_expand[layers_sort[i]] = ass[j]
-                print("layer to expand: " + str(layers_sort[i]) + " ; " + str(ass[j]))
-            print("cos distance: " + str(layers_sort_cos[i]))
             j += 1
+
+        if type(ass) is not list:
+            print("layer to expand: " + str(layers_sort[i]) + " ; "
+                  + str(layers_expand[layers_sort[i]]))
+            print("cos distance: " + str(layers_sort_cos[i]))
+
 
     return layers_expand
 
