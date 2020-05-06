@@ -166,6 +166,7 @@ def life_experience(model, continuum, x_te, args):
 
     for (i, (x, t, y)) in enumerate(continuum):
         if t != current_task:
+            print("Training Time: ", time.time()-train_start)
             temp_acc = eval_tasks(model, x_te, args)[:temp_total_task+1]
             for pre_t in range(t):
                 print("accuracy of task " + str(pre_t) + " is: " + str(temp_acc[pre_t].item()))
@@ -195,6 +196,7 @@ def life_experience(model, continuum, x_te, args):
                 cos_layer = cos_layer.cuda()
             print("Observe Time: ", np.mean(observe_time))
             model.expand(cos_layer, cos_weight, t)
+            train_start = time.time()
             observe = 0
             if args.cuda:
                 try:
