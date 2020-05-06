@@ -175,7 +175,7 @@ class Net(nn.Module):
         self.lr = args.lr
         self.thre = args.thre
         if self.is_cifar:
-            self.expand_size = 0.2
+            self.expand_size = args.expand_size[0]
         else:
             self.expand_size = args.expand_size
 
