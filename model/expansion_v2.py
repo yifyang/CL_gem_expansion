@@ -14,6 +14,7 @@ from torch.autograd import Variable
 
 import numpy as np
 import copy
+import time
 
 from .common import MLP, ResNet18, vgg11_bn
 
@@ -519,11 +520,12 @@ class Net(nn.Module):
                     pre_weight_norm = torch.mul(pre_grad, pre_grad)
                     cur_weight_norm = torch.mul(cur_grad, cur_grad)
                     # compute the cosine similarity at layer level
-                    cos_layer_temp.append(dotp_weight /
-                                          (torch.sum(cur_weight_norm) * torch.sum(pre_weight_norm)))
+                    cos_layer_temp.append((torch.sum(dotp_weight)
+                                          / (torch.sum(cur_weight_norm).sqrt()
+                                             * torch.sum(pre_weight_norm).sqrt())).item())
 
                     # compute the cosine similarity at weight level
-                    weight_norm = torch.mul(cur_weight_norm, pre_weight_norm)
+                    weight_norm = torch.mul(cur_weight_norm.sqrt(), pre_weight_norm.sqrt())
                     task_weight_temp = torch.div(dotp_weight, weight_norm)
                     """                  
                     cos_layer_temp.append(
@@ -534,9 +536,9 @@ class Net(nn.Module):
                     # compute the cosine similarity at weight level
                     task_weight_temp = torch.cosine_similarity(self.grads_layer[layer_num][:, t].view(num_weights, 1),
                                                                self.grads_layer[layer_num][:, pre_task].view(num_weights, 1),
-                                                               dim=1).tolist()
+                                                               dim=1)
                     """
-                    cos_weight_temp += torch.tensor(task_weight_temp)
+                    cos_weight_temp += task_weight_temp
                 cos_layer_temp += [0] * ((self.n_tasks - 1) - len(cos_layer_temp))
                 cos_layers.append(cos_layer_temp)
                 cos_weight.append(cos_weight_temp)
