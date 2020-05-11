@@ -196,10 +196,12 @@ def life_experience(model, continuum, x_te, args):
             cos_layer = torch.tensor(cos_layer)
             if args.cuda:
                 cos_layer = cos_layer.cuda()
-            print("Observe Time: ", np.mean(observe_time))
+            print("Mean Observe Time: ", np.mean(observe_time))
+            print("Total Observing Time", np.sum(observe_time))
             model.expand(cos_layer, cos_weight, t)
             train_start = time.time()
             observe = 0
+            observe_time = []
             if args.cuda:
                 try:
                     model.cuda()
