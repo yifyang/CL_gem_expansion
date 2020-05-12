@@ -14,9 +14,8 @@ from torch.autograd import Variable
 
 import numpy as np
 import copy
-import time
 
-from .common import MLP, ResNet18, vgg11_bn
+from .common import MLP, vgg11_bn
 
 
 # Auxiliary functions useful for GEM's inner optimization.
@@ -127,7 +126,6 @@ class Net(nn.Module):
                          args.data_file == 'cifar100_20_o.pt')
         if self.is_cifar:
             self.net = vgg11_bn()
-            # self.net = ResNet18(n_outputs)
         else:
             self.net = MLP([n_inputs] + [nh] * nl + [n_outputs])
 
@@ -269,6 +267,8 @@ class Net(nn.Module):
                 if j == 0:
                     # expand the first layer
                     copy_neuron_x = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])])
+
+                    # share all neurons at the first layer
                     share_neuron.append(np.arange(self.n_inputs))
                     freeze_neuron.append((np.array([])))
 
@@ -287,15 +287,18 @@ class Net(nn.Module):
                     share_neuron.append(np.array(temp_share_neuron))
                     freeze_neuron.append(temp_freeze_neuron)
 
+                    # share all neurons at the last layer
                     share_neuron.append(np.arange(self.n_outputs))
                     freeze_neuron.append((np.array([])))
 
+                    # copy neurons from old ones
                     init_weight = param[:, copy_neuron_y]
                     if self.gpu:
                         init_weight = init_weight.cuda()
                     new_dict[name] = torch.cat((new_dict[name], init_weight), 1)
                     new_dict[name][:, copy_neuron_y] = 0
 
+                    # assign numbers of neurons in expanded network
                     if self.is_cifar and 'features' in name:
                         hidden_layer_conv.append(expand_y)
                     elif self.is_cifar and 'classifier' in name:
@@ -305,6 +308,7 @@ class Net(nn.Module):
                 else:
                     # expand the hidden layers
                     expand_x, expand_y = int(layers_expand[j+1] * self.n_hiddens[j+1] + param_size[0]), pre_x
+
                     if self.is_cifar and 'features' in name:
                         hidden_layer_conv.append(expand_y)
                     elif self.is_cifar and 'classifier' in name:
@@ -314,14 +318,13 @@ class Net(nn.Module):
 
                     # select neurons to be activated and frozen for the coming task
                     copy_neuron_y = np.array(weight_sort[j][:int(layers_expand[j] * self.n_hiddens[j])])
+                    copy_neuron_x = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])])
                     temp_share_neuron = np.append(
                         weight_sort[j][int(layers_expand[j] * self.n_hiddens[j]):],
                         np.arange(param_size[1], expand_y))
                     temp_freeze_neuron = np.arange(param_size[1])
                     share_neuron.append(temp_share_neuron)
                     freeze_neuron.append(temp_freeze_neuron)
-
-                    copy_neuron_x = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])])
 
                     # expand the layer
                     expand_size = list(param_size)
@@ -331,6 +334,7 @@ class Net(nn.Module):
                     if self.gpu:
                         init_weight = init_weight.cuda()
                     torch.nn.init.xavier_normal_(init_weight, gain=1)
+                    # copy neurons from old ones
                     init_weight[:param_size[0], :param_size[1]] = param
                     init_weight[param_size[0]:, :param_size[1]] = param[copy_neuron_x, :]
                     init_weight[:param_size[0], param_size[1]:] = param[:, copy_neuron_y]
@@ -347,8 +351,6 @@ class Net(nn.Module):
                     if self.gpu:
                         init_bias = init_bias.cuda()
                     new_dict[name] = torch.cat((new_dict[name], init_bias), 0)
-
-        del init_weight, init_bias
 
         self.sel_neuron.append(share_neuron)
         self.frz_neuron.append(freeze_neuron)
@@ -374,6 +376,7 @@ class Net(nn.Module):
         self.task_dict.append(current_dict)
 
         # update the expanded neurons in previous state_dict(set to be 0)
+        # to fit in the expanded network
         for t_i in range(t):
             for name in self.task_dict[t_i]:
                 param_size = new_dict[name].size()
@@ -527,17 +530,6 @@ class Net(nn.Module):
                     # compute the cosine similarity at weight level
                     weight_norm = torch.mul(cur_weight_norm.sqrt(), pre_weight_norm.sqrt())
                     task_weight_temp = torch.div(dotp_weight, weight_norm)
-                    """                  
-                    cos_layer_temp.append(
-                        torch.cosine_similarity(self.grads_layer[layer_num][:, t],
-                                                self.grads_layer[layer_num][:, pre_task],
-                                                dim=0).item())
-
-                    # compute the cosine similarity at weight level
-                    task_weight_temp = torch.cosine_similarity(self.grads_layer[layer_num][:, t].view(num_weights, 1),
-                                                               self.grads_layer[layer_num][:, pre_task].view(num_weights, 1),
-                                                               dim=1)
-                    """
                     cos_weight_temp += task_weight_temp
                 cos_layer_temp += [0] * ((self.n_tasks - 1) - len(cos_layer_temp))
                 cos_layers.append(cos_layer_temp)
