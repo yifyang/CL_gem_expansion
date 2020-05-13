@@ -465,7 +465,7 @@ class Net(nn.Module):
                     Variable(self.memory_labs[past_task] - offset1))
                 ptloss.backward()
                 store_layer_grad(self.for_layer, self.grads_layer,
-                                 self.grad_dims_layer, past_task, self.is_cifar)
+                                 self.grad_dims_layer, past_task)
 
         # now compute the grad on the current minibatch
         self.zero_grad()
@@ -480,7 +480,7 @@ class Net(nn.Module):
         if len(self.observed_tasks) > 1:
             # copy gradient
             store_layer_grad(self.for_layer, self.grads_layer,
-                             self.grad_dims_layer, t, self.is_cifar)
+                             self.grad_dims_layer, t)
 
             indx = torch.cuda.LongTensor(self.observed_tasks[:-1]) if self.gpu \
                 else torch.LongTensor(self.observed_tasks[:-1])
