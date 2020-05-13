@@ -162,12 +162,13 @@ def life_experience(model, continuum, x_te, args):
     temp_total_task = args.task_num
 
     time_start = time.time()
-    train_start = time_start
+    # train_start = time_start
 
     for (i, (x, t, y)) in enumerate(continuum):
         if t != current_task:
-            print("Training Time: ", time.time()-train_start)
-            print("\n")
+            # print("Training Time: ", time.time()-train_start)
+            # print("\n")
+            print("Training done")
             temp_acc = eval_tasks(model, x_te, args)[:temp_total_task+1]
             for pre_t in range(t):
                 print("accuracy of task " + str(pre_t) + " is: " + str(temp_acc[pre_t].item()))
@@ -182,9 +183,10 @@ def life_experience(model, continuum, x_te, args):
             cos_layer = []
             current_task = t
             observe = 1
-            observe_time = []
+            # observe_time = []
 
-            print("\n\nStart training task " + str(t))
+            print("\nTask " + str(t))
+            print("Start observing...")
 
         if (i % args.log_every) == 0:
             result_a.append(eval_tasks(model, x_te, args)[:temp_total_task+1])
@@ -192,19 +194,19 @@ def life_experience(model, continuum, x_te, args):
 
         if 'expansion' in args.model \
                 and (i == batch_per_task * t + observe_batch) and t > 0:
-            print("expanding")
+            print("Observation done")
+            print("Model is growing...")
             cos_layer = torch.tensor(cos_layer)
             if args.cuda:
                 cos_layer = cos_layer.cuda()
-            print("Mean Observe Time: ", np.mean(observe_time))
-            print("Total Observing Time", np.sum(observe_time))
-            start_exp = time.time()
+            # print("Mean Observe Time: ", np.mean(observe_time))
+            # print("Total Observing Time", np.sum(observe_time))
             model.expand(cos_layer, cos_weight, t)
-            print("Expanding Time: ", time.time()-start_exp)
-            print(next(model.parameters()).is_cuda)
+            print("Expanding done")
             train_start = time.time()
+            print("Start training...")
             observe = 0
-            observe_time = []
+            # observe_time = []
             if args.cuda:
                 try:
                     model.cuda()
@@ -219,12 +221,11 @@ def life_experience(model, continuum, x_te, args):
             v_y = v_y.cuda()
 
         if 'expansion' in args.model and observe and t > 0:
-            print("observing")
             model.train()
-            start = time.time()
+            # start = time.time()
             temp_layer, temp_weight = model.observe(Variable(v_x), t, Variable(v_y))
-            print("Observe Time: ", time.time()-start)
-            observe_time.append(time.time()-start)
+            # print("Observe Time: ", time.time()-start)
+            # observe_time.append(time.time()-start)
             cos_layer.append(temp_layer)
             if cos_weight == []:
                 cos_weight = temp_weight
