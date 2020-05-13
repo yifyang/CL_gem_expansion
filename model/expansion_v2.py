@@ -35,26 +35,7 @@ def compute_offsets(task, nc_per_task, is_cifar):
     return offset1, offset2
 
 
-# def store_grad(pp, grads, grad_dims, tid):
-#     """
-#         This stores parameter gradients of past tasks.
-#         pp: parameters
-#         grads: gradients
-#         grad_dims: list with number of parameters per layers
-#         tid: task id
-#     """
-#     # store the gradients
-#     grads[:, tid].fill_(0.0)
-#     cnt = 0
-#     for param in pp():
-#         if param.grad is not None:
-#             beg = 0 if cnt == 0 else sum(grad_dims[:cnt])
-#             en = sum(grad_dims[:cnt + 1])
-#             grads[beg: en, tid].copy_(param.grad.data.view(-1))
-#         cnt += 1
-
-
-def store_layer_grad(layers, grads_layer, grad_dims_layer, tid, is_cifar):
+def store_layer_grad(layers, grads_layer, grad_dims_layer, tid):
     """
         This stores parameter gradients at each layers of past tasks.
         layers: layers in neural network
@@ -189,7 +170,6 @@ class Net(nn.Module):
         self.grad_dims = []
         for param in self.parameters():
             self.grad_dims.append(param.data.numel())
-        # self.grads = torch.Tensor(sum(self.grad_dims), self.n_tasks)
 
         self.for_layer = []
         self.grad_dims_layer = []
@@ -204,11 +184,6 @@ class Net(nn.Module):
             if self.gpu:
                 self.grads_layer[-1] = self.grads_layer[-1].cuda()
             layer_num += 1
-
-        # self.grads_layer = torch.Tensor(self.grads_layer)
-        # if self.gpu:
-        #     self.grads = self.grads.cuda()
-            # self.grads_layer = self.grads_layer.cuda()
 
     def forward(self, x, t):
         output = self.net(x)
@@ -489,8 +464,6 @@ class Net(nn.Module):
                         past_task)[:, offset1: offset2],
                     Variable(self.memory_labs[past_task] - offset1))
                 ptloss.backward()
-                # store_grad(self.parameters, self.grads, self.grad_dims,
-                #            past_task)
                 store_layer_grad(self.for_layer, self.grads_layer,
                                  self.grad_dims_layer, past_task, self.is_cifar)
 
@@ -506,7 +479,6 @@ class Net(nn.Module):
         cos_weight = []
         if len(self.observed_tasks) > 1:
             # copy gradient
-            # store_grad(self.parameters, self.grads, self.grad_dims, t)
             store_layer_grad(self.for_layer, self.grads_layer,
                              self.grad_dims_layer, t, self.is_cifar)
 

@@ -162,12 +162,11 @@ def life_experience(model, continuum, x_te, args):
     temp_total_task = args.task_num
 
     time_start = time.time()
-    # train_start = time_start
 
     for (i, (x, t, y)) in enumerate(continuum):
         if t != current_task:
-            # print("Training Time: ", time.time()-train_start)
-            # print("\n")
+            if args.cuda:
+                torch.cuda.empty_cache()
             print("Training done")
             temp_acc = eval_tasks(model, x_te, args)[:temp_total_task+1]
             for pre_t in range(t):
@@ -183,7 +182,6 @@ def life_experience(model, continuum, x_te, args):
             cos_layer = []
             current_task = t
             observe = 1
-            # observe_time = []
 
             print("\nTask " + str(t))
             print("Start observing...")
@@ -195,18 +193,15 @@ def life_experience(model, continuum, x_te, args):
         if 'expansion' in args.model \
                 and (i == batch_per_task * t + observe_batch) and t > 0:
             print("Observation done")
-            print("Model is growing...")
+            print("Start expanding...")
             cos_layer = torch.tensor(cos_layer)
             if args.cuda:
                 cos_layer = cos_layer.cuda()
-            # print("Mean Observe Time: ", np.mean(observe_time))
-            # print("Total Observing Time", np.sum(observe_time))
             model.expand(cos_layer, cos_weight, t)
             print("Expanding done")
             train_start = time.time()
             print("Start training...")
             observe = 0
-            # observe_time = []
             if args.cuda:
                 try:
                     model.cuda()
@@ -222,10 +217,7 @@ def life_experience(model, continuum, x_te, args):
 
         if 'expansion' in args.model and observe and t > 0:
             model.train()
-            # start = time.time()
             temp_layer, temp_weight = model.observe(Variable(v_x), t, Variable(v_y))
-            # print("Observe Time: ", time.time()-start)
-            # observe_time.append(time.time()-start)
             cos_layer.append(temp_layer)
             if cos_weight == []:
                 cos_weight = temp_weight
