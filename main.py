@@ -188,12 +188,12 @@ def life_experience(model, continuum, x_te, args):
             print("\n\nStart training task " + str(t))
 
         if (i % args.log_every) == 0:
-            print("log_every")
             result_a.append(eval_tasks(model, x_te, args)[:temp_total_task+1])
             result_t.append(current_task)
 
         if 'expansion' in args.model \
                 and (i == batch_per_task * t + observe_batch) and t > 0:
+            print("expanding")
             cos_layer = torch.tensor(cos_layer)
             if args.cuda:
                 cos_layer = cos_layer.cuda()
@@ -220,6 +220,7 @@ def life_experience(model, continuum, x_te, args):
             v_y = v_y.cuda()
 
         if 'expansion' in args.model and observe and t > 0:
+            print("observing")
             model.train()
             start = time.time()
             temp_layer, temp_weight = model.observe(Variable(v_x), t, Variable(v_y))
