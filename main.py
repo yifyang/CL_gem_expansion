@@ -188,6 +188,7 @@ def life_experience(model, continuum, x_te, args):
             print("\n\nStart training task " + str(t))
 
         if (i % args.log_every) == 0:
+            print("log_every")
             result_a.append(eval_tasks(model, x_te, args)[:temp_total_task+1])
             result_t.append(current_task)
 
