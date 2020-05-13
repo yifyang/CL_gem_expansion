@@ -198,7 +198,9 @@ def life_experience(model, continuum, x_te, args):
                 cos_layer = cos_layer.cuda()
             print("Mean Observe Time: ", np.mean(observe_time))
             print("Total Observing Time", np.sum(observe_time))
+            start_exp = time.time()
             model.expand(cos_layer, cos_weight, t)
+            print("Expanding Time: ", time.time()-start_exp)
             print(next(model.parameters()).is_cuda)
             train_start = time.time()
             observe = 0
