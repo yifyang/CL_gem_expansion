@@ -205,6 +205,7 @@ class Net(nn.Module):
             #     self.grads_layer[-1] = self.grads_layer[-1].cuda()
             layer_num += 1
 
+        self.grads_layer = torch.Tensor(self.grads_layer)
         if self.gpu:
             self.grads = self.grads.cuda()
             self.grads_layer = self.grads_layer.cuda()
