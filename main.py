@@ -39,8 +39,7 @@ def load_datasets(args):
 
 def add_list(list1, list2):
     for i in range(len(list1)):
-        for j in range(len(list1[i])):
-            list1[i][j] += list2[i][j]
+        list1[i] += list2[i]
 
     return list1
 
@@ -166,7 +165,6 @@ def life_experience(model, continuum, x_te, args):
     train_start = time_start
 
     for (i, (x, t, y)) in enumerate(continuum):
-        print(i, t)
         if t != current_task:
             print("Training Time: ", time.time()-train_start)
             print("\n")
