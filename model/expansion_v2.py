@@ -14,6 +14,7 @@ from torch.autograd import Variable
 
 import numpy as np
 import copy
+import time
 
 from .common import MLP, vgg11_bn
 
@@ -200,12 +201,13 @@ class Net(nn.Module):
         for param in self.for_layer:
             self.grad_dims_layer.append([param.data.numel()])
             self.grads_layer.append(torch.Tensor(sum(self.grad_dims_layer[layer_num]), self.n_tasks))
-            if self.gpu:
-                self.grads_layer[-1] = self.grads_layer[-1].cuda()
+            # if self.gpu:
+            #     self.grads_layer[-1] = self.grads_layer[-1].cuda()
             layer_num += 1
 
         if self.gpu:
             self.grads = self.grads.cuda()
+            self.grads_layer = self.grads_layer.cuda()
 
     def forward(self, x, t):
         output = self.net(x)
@@ -472,6 +474,7 @@ class Net(nn.Module):
             self.mem_cnt = 0
 
         # compute gradient on previous tasks
+        start_pre = time.time()
         if len(self.observed_tasks) > 1:
             for tt in range(len(self.observed_tasks) - 1):
                 self.zero_grad()
@@ -490,19 +493,23 @@ class Net(nn.Module):
                            past_task)
                 store_layer_grad(self.for_layer, self.grads_layer,
                                  self.grad_dims_layer, past_task, self.is_cifar)
+        print("Forward buffer: ", time.time() - start_pre)
 
         # now compute the grad on the current minibatch
         self.zero_grad()
 
+        start_cur = time.time()
         offset1, offset2 = compute_offsets(t, self.nc_per_task, self.is_cifar)
         loss = self.ce(self.forward(x, t)[:, offset1: offset2], y - offset1)
         loss.backward()
+        print("Forward current: ", time.time() - start_cur)
 
         # check if gradient violates constraints
         cos_layers = [[0] * (self.n_tasks - 1)] * len(self.grads_layer)  # record cos and return
         cos_weight = []
         if len(self.observed_tasks) > 1:
             # copy gradient
+            start_cos = time.time()
             store_grad(self.parameters, self.grads, self.grad_dims, t)
             store_layer_grad(self.for_layer, self.grads_layer,
                              self.grad_dims_layer, t, self.is_cifar)
@@ -536,6 +543,7 @@ class Net(nn.Module):
                 cos_layer_temp += [0] * ((self.n_tasks - 1) - len(cos_layer_temp))
                 cos_layers.append(cos_layer_temp)
                 cos_weight.append(cos_weight_temp)
+            print("Compute cos: ", time.time() - start_cos)
 
         self.zero_grad()
 
