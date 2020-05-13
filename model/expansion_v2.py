@@ -328,6 +328,7 @@ class Net(nn.Module):
                     if self.gpu:
                         init_bias = init_bias.cuda()
                     new_dict[name] = torch.cat((new_dict[name], init_bias), 0)
+                    new_dict[name][copy_neuron_x] = 0
 
         self.sel_neuron.append(share_neuron)
         self.frz_neuron.append(freeze_neuron)
