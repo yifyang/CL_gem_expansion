@@ -14,7 +14,6 @@ from torch.autograd import Variable
 
 import numpy as np
 import copy
-import time
 
 from .common import MLP, vgg11_bn
 
