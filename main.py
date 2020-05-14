@@ -168,6 +168,7 @@ def life_experience(model, continuum, x_te, args):
             if args.cuda:
                 torch.cuda.empty_cache()
             print("Training done")
+            print("Training time: ", time.time() - train_start)
             temp_acc = eval_tasks(model, x_te, args)[:temp_total_task+1]
             for pre_t in range(t):
                 print("accuracy of task " + str(pre_t) + " is: " + str(temp_acc[pre_t].item()))
