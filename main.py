@@ -162,6 +162,7 @@ def life_experience(model, continuum, x_te, args):
     temp_total_task = args.task_num
 
     time_start = time.time()
+    train_start = time_start
 
     for (i, (x, t, y)) in enumerate(continuum):
         if t != current_task:
