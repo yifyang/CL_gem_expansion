@@ -215,7 +215,6 @@ class Net(nn.Module):
                 else:
                     cos_weight[layer] = torch.sum(cos_weight[layer].view(param_size), dim=0)
                 _, temp_sort = torch.sort(cos_weight[layer])
-                print(len(temp_sort))
 
                 # select neurons used in the last task
                 sel_sort = []
