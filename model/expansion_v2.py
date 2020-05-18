@@ -243,7 +243,10 @@ class Net(nn.Module):
                 layer_size.append(param_size)
                 if j == 0:
                     # expand the first layer
-                    copy_neuron_x = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])])
+                    # copy_neuron_x = weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])]
+                    # randomly select neurons
+                    copy_neuron_x = np.random.choice(weight_sort[j+1],
+                                                     int(layers_expand[j+1] * self.n_hiddens[j+1]))
 
                     # share all neurons at the first layer
                     share_neuron.append(np.arange(self.n_inputs))
@@ -256,7 +259,11 @@ class Net(nn.Module):
                     new_dict[name][copy_neuron_x, :] = 0
                 elif j == layer-1:
                     # expand the last layer
-                    copy_neuron_y = np.array(weight_sort[j][:int(layers_expand[j] * self.n_hiddens[j])])
+                    # copy_neuron_y = weight_sort[j][:int(layers_expand[j] * self.n_hiddens[j])]
+                    # randomly select neurons
+                    copy_neuron_y = np.random.choice(weight_sort[j],
+                                                     int(layers_expand[j] * self.n_hiddens[j]))
+
                     temp_share_neuron = np.append(
                         weight_sort[j][int(layers_expand[j] * self.n_hiddens[j]):],
                         np.arange(param_size[0], pre_x))
@@ -294,8 +301,16 @@ class Net(nn.Module):
                         hidden_layer_linear.append(expand_y)
 
                     # select neurons to be activated and frozen for the coming task
-                    copy_neuron_y = np.array(weight_sort[j][:int(layers_expand[j] * self.n_hiddens[j])])
-                    copy_neuron_x = np.array(weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])])
+                    # copy_neuron_y = weight_sort[j][:int(layers_expand[j] * self.n_hiddens[j])]
+                    # randomly select neurons
+                    copy_neuron_y = np.random.choice(weight_sort[j],
+                                                     int(layers_expand[j] * self.n_hiddens[j]))
+
+                    # copy_neuron_x = weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])]
+                    # randomly select neurons
+                    copy_neuron_x = np.random.choice(weight_sort[j+1],
+                                                     int(layers_expand[j+1] * self.n_hiddens[j+1]))
+
                     temp_share_neuron = np.append(
                         weight_sort[j][int(layers_expand[j] * self.n_hiddens[j]):],
                         np.arange(param_size[1], expand_y))
