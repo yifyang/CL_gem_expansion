@@ -12,6 +12,7 @@ data/
 
 # saved model
 results/
+checkpoint/
 
 # virtual environment
 mer/

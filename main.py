@@ -111,6 +111,8 @@ class Continuum:
 
 def eval_tasks(model, tasks, args):
     current_dict = copy.deepcopy(model.state_dict())
+    if os.path.exists(model.checkpoint_path):
+        task_dict = torch.load(model.checkpoint_path)
     model.eval()
     result = []
     for i, task in enumerate(tasks):
@@ -118,8 +120,11 @@ def eval_tasks(model, tasks, args):
         x = task[1]
         y = task[2]
         rt = 0
-        if 'expansion' in args.model and t < len(model.task_dict):
-            model.load_state_dict(model.task_dict[t])
+        if 'expansion' in args.model \
+                and os.path.exists(model.checkpoint_path) \
+                and t < len(task_dict):
+            # load checkpoint for evaluation
+            model.load_state_dict(task_dict[str(t)])
         else:
             model.load_state_dict(current_dict)
 
@@ -285,6 +290,8 @@ if __name__ == "__main__":
                         help='frequency of logs, in minibatches')
     parser.add_argument('--save_path', type=str, default='results/',
                         help='save models at the end of training')
+    parser.add_argument('--checkpoint_path', type=str, default='checkpoint/',
+                        help='save models of each task')
 
     # data parameters
     parser.add_argument('--data_path', default='data/',
@@ -306,7 +313,7 @@ if __name__ == "__main__":
         args.n_layers -= 1
 
     # unique identifier
-    uid = uuid.uuid4().hex
+    # uid = uuid.uuid4().hex
 
     # initialize seeds
     torch.backends.cudnn.enabled = False
@@ -345,7 +352,7 @@ if __name__ == "__main__":
 
     fname = args.model + '_' + args.data_file + '_'
     fname += datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-    fname += '_' + uid
+    # fname += '_' + uid
     fname = os.path.join(args.save_path, fname)
 
     # save confusion matrix and print one line of stats
