@@ -280,6 +280,8 @@ if __name__ == "__main__":
                         help='Freeze all neurons from previous task or not')
     parser.add_argument('--task_num', type=int, default=6,
                         help='Number of tasks to observe')
+    parser.add_argument('--mode', type=str, default="sort",
+                        help='Method to select neurons. sort & random & mask')
 
     # experiment parameters
     parser.add_argument('--cuda', type=str, default='no',

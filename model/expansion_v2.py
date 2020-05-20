@@ -1,12 +1,3 @@
-### This is a copy of GEM from https://github.com/facebookresearch/GradientEpisodicMemory.
-### In order to ensure complete reproducability, we do not change the file and treat it as a baseline.
-
-# Copyright 2019-present, IBM Research
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -94,6 +85,30 @@ def layer_sort(cos_layer, t, threshold, ass):
     return layers_expand
 
 
+class Optimizers(object):
+    def __init__(self):
+        self.optimizers = []
+        self.lrs = []
+
+    def add(self, optimizer, lr):
+        self.optimizers.append(optimizer)
+        self.lrs.append(lr)
+
+    def step(self):
+        for optimizer in self.optimizers:
+            optimizer.step()
+
+    def zero_grad(self):
+        for optimizer in self.optimizers:
+            optimizer.zero_grad()
+
+    def __getitem__(self, index):
+        return self.optimizers[index]
+
+    def __setitem__(self, index, value):
+        self.optimizers[index] = value
+
+
 class Net(nn.Module):
     def __init__(self,
                  n_inputs,
@@ -129,6 +144,7 @@ class Net(nn.Module):
         self.gpu = args.cuda
         self.lr = args.lr
         self.thre = args.thre
+        self.mode = args.mode
         if self.is_cifar:
             self.expand_size = args.expand_size[0]
         else:
@@ -137,7 +153,8 @@ class Net(nn.Module):
         #  store dict for each task
         self.checkpoint_path = args.checkpoint_path + args.model + '_' \
                                + args.data_file + '_' \
-                               + datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+                               + datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S") \
+                               + '.pt'
         self.neuron_share = []
 
         # allocate episodic memory
@@ -246,10 +263,11 @@ class Net(nn.Module):
                 layer_size.append(param_size)
                 if j == 0:
                     # expand the first layer
-                    # copy_neuron_x = weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])]
-                    # randomly select neurons
-                    copy_neuron_x = np.random.choice(weight_sort[j+1],
-                                                     int(layers_expand[j+1] * self.n_hiddens[j+1]))
+                    if self.mode == "sort":
+                        copy_neuron_x = weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])]
+                    elif self.mode == "random":
+                        copy_neuron_x = np.random.choice(weight_sort[j+1],
+                                                         int(layers_expand[j+1] * self.n_hiddens[j+1]))
 
                     # share all neurons at the first layer
                     share_neuron.append(np.arange(self.n_inputs))
@@ -262,10 +280,11 @@ class Net(nn.Module):
                     new_dict[name][copy_neuron_x, :] = 0
                 elif j == layer-1:
                     # expand the last layer
-                    # copy_neuron_y = weight_sort[j][:int(layers_expand[j] * self.n_hiddens[j])]
-                    # randomly select neurons
-                    copy_neuron_y = np.random.choice(weight_sort[j],
-                                                     int(layers_expand[j] * self.n_hiddens[j]))
+                    if self.mode == "sort":
+                        copy_neuron_x = weight_sort[j][:int(layers_expand[j] * self.n_hiddens[j])]
+                    elif self.mode == "random":
+                        copy_neuron_x = np.random.choice(weight_sort[j],
+                                                         int(layers_expand[j] * self.n_hiddens[j]))
 
                     temp_share_neuron = np.append(
                         weight_sort[j][int(layers_expand[j] * self.n_hiddens[j]):],
@@ -304,15 +323,14 @@ class Net(nn.Module):
                         hidden_layer_linear.append(expand_y)
 
                     # select neurons to be activated and frozen for the coming task
-                    # copy_neuron_y = weight_sort[j][:int(layers_expand[j] * self.n_hiddens[j])]
-                    # randomly select neurons
-                    copy_neuron_y = np.random.choice(weight_sort[j],
-                                                     int(layers_expand[j] * self.n_hiddens[j]))
-
-                    # copy_neuron_x = weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])]
-                    # randomly select neurons
-                    copy_neuron_x = np.random.choice(weight_sort[j+1],
-                                                     int(layers_expand[j+1] * self.n_hiddens[j+1]))
+                    if self.mode == "sort":
+                        copy_neuron_x = weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])]
+                        copy_neuron_y = weight_sort[j][:int(layers_expand[j] * self.n_hiddens[j])]
+                    elif self.mode == "random":
+                        copy_neuron_x = np.random.choice(weight_sort[j+1],
+                                                         int(layers_expand[j+1] * self.n_hiddens[j+1]))
+                        copy_neuron_y = np.random.choice(weight_sort[j],
+                                                         int(layers_expand[j] * self.n_hiddens[j]))
 
                     temp_share_neuron = np.append(
                         weight_sort[j][int(layers_expand[j] * self.n_hiddens[j]):],
