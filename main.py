@@ -111,8 +111,6 @@ class Continuum:
 
 def eval_tasks(model, tasks, args):
     current_dict = copy.deepcopy(model.state_dict())
-    if os.path.exists(model.checkpoint_path):
-        task_dict = torch.load(model.checkpoint_path)
     model.eval()
     result = []
     for i, task in enumerate(tasks):
@@ -188,6 +186,7 @@ def life_experience(model, continuum, x_te, args):
             task_l = []
             cos_weight = []
             cos_layer = []
+            weight_norm = []
             current_task = t
             observe = 1
 
@@ -205,7 +204,7 @@ def life_experience(model, continuum, x_te, args):
             cos_layer = torch.tensor(cos_layer)
             if args.cuda:
                 cos_layer = cos_layer.cuda()
-            model.expand(cos_layer, cos_weight, t)
+            model.expand(cos_layer, cos_weight, weight_norm, t)
             print("Expanding done")
             train_start = time.time()
             print("Start training...")
@@ -225,12 +224,15 @@ def life_experience(model, continuum, x_te, args):
 
         if 'expansion' in args.model and observe and t > 0:
             model.train()
-            temp_layer, temp_weight = model.observe(Variable(v_x), t, Variable(v_y))
-            cos_layer.append(temp_layer)
+            temp_cos_layer, temp_cos_weight, temp_weight_norm = \
+                model.observe(Variable(v_x), t, Variable(v_y))
+            cos_layer.append(temp_cos_layer)
             if cos_weight == []:
-                cos_weight = temp_weight
+                cos_weight = temp_cos_weight
+                weight_norm = temp_weight_norm
             else:
-                cos_weight = add_list(cos_weight, temp_weight)
+                cos_weight = add_list(cos_weight, temp_cos_weight)
+                weight_norm = add_list(weight_norm, temp_weight_norm)
         else:
             model.train()
             task_l.append(model.update(Variable(v_x), t, Variable(v_y)))

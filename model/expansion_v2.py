@@ -217,7 +217,7 @@ class Net(nn.Module):
                 output[:, offset2:self.n_outputs].data.fill_(-10e10)
         return output
 
-    def expand(self, cos_layer, cos_weight, t):
+    def expand(self, cos_layer, cos_weight, weight_norm, t):
         layers_expand = layer_sort(cos_layer, t, self.thre, self.expand_size)
         layer_size = []
         new_dict = copy.deepcopy(self.state_dict())
@@ -229,13 +229,22 @@ class Net(nn.Module):
             param_size = param.size()
             if 'bias' not in name and len(param_size) > 1:
                 # sort gradient of weights at each layer
-                if len(param_size) > 2:
-                    temp_weight = torch.sum(cos_weight[layer].view(param_size), dim=0)
-                    temp_weight = torch.sum(temp_weight, dim=1)
-                    cos_weight[layer] = torch.sum(temp_weight, dim=1)
+                if self.mode == "mask":
+                    if len(param_size) > 2:
+                        temp_weight = torch.sum(weight_norm[layer].view(param_size), dim=0)
+                        temp_weight = torch.sum(temp_weight, dim=1)
+                        weight_norm[layer] = torch.sum(temp_weight, dim=1)
+                    else:
+                        weight_norm[layer] = torch.sum(weight_norm[layer].view(param_size), dim=0)
+                    _, temp_sort = torch.sort(weight_norm[layer], descending=True)
                 else:
-                    cos_weight[layer] = torch.sum(cos_weight[layer].view(param_size), dim=0)
-                _, temp_sort = torch.sort(cos_weight[layer])
+                    if len(param_size) > 2:
+                        temp_weight = torch.sum(cos_weight[layer].view(param_size), dim=0)
+                        temp_weight = torch.sum(temp_weight, dim=1)
+                        cos_weight[layer] = torch.sum(temp_weight, dim=1)
+                    else:
+                        cos_weight[layer] = torch.sum(cos_weight[layer].view(param_size), dim=0)
+                    _, temp_sort = torch.sort(cos_weight[layer])
 
                 # select neurons used in the last task
                 sel_sort = []
@@ -263,7 +272,7 @@ class Net(nn.Module):
                 layer_size.append(param_size)
                 if j == 0:
                     # expand the first layer
-                    if self.mode == "sort":
+                    if self.mode == "sort" or self.mode == "mask":
                         copy_neuron_x = weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])]
                     elif self.mode == "random":
                         copy_neuron_x = np.random.choice(weight_sort[j+1],
@@ -280,7 +289,7 @@ class Net(nn.Module):
                     new_dict[name][copy_neuron_x, :] = 0
                 elif j == layer-1:
                     # expand the last layer
-                    if self.mode == "sort":
+                    if self.mode == "sort" or self.mode == "mask":
                         copy_neuron_x = weight_sort[j][:int(layers_expand[j] * self.n_hiddens[j])]
                     elif self.mode == "random":
                         copy_neuron_x = np.random.choice(weight_sort[j],
@@ -323,7 +332,7 @@ class Net(nn.Module):
                         hidden_layer_linear.append(expand_y)
 
                     # select neurons to be activated and frozen for the coming task
-                    if self.mode == "sort":
+                    if self.mode == "sort" or self.mode == "mask":
                         copy_neuron_x = weight_sort[j+1][:int(layers_expand[j+1] * self.n_hiddens[j+1])]
                         copy_neuron_y = weight_sort[j][:int(layers_expand[j] * self.n_hiddens[j])]
                     elif self.mode == "random":
@@ -387,12 +396,8 @@ class Net(nn.Module):
 
     def share(self, new_dict, t):
         current_dict = copy.deepcopy(self.state_dict())
-        # if t == 1:
         torch.save(current_dict, self.checkpoint_path + "_task" + str(t-1))
         self.current_task = t
-        # else:
-        #     task_dict = torch.load(self.checkpoint_path)
-        #     task_dict[str(t-1)] = current_dict
 
         # update the expanded neurons in previous state_dict(set to be 0)
         # to fit in the expanded network
@@ -533,18 +538,21 @@ class Net(nn.Module):
 
             cos_layers = []
             cos_weight = []
+            weights_norm = []
             for layer_num in range(len(self.grads_layer)):
                 num_weights = len(self.grads_layer[layer_num][:, t])
                 cos_layer_temp = []
                 cos_weight_temp = torch.zeros(num_weights)
+                weights_norm_temp = torch.zeros(num_weights)
                 if self.gpu:
                     cos_weight_temp = cos_weight_temp.cuda()
+                cur_grad = self.grads_layer[layer_num][:, t]
+                cur_weight_norm = torch.mul(cur_grad, cur_grad)
+                weights_norm_temp += cur_weight_norm
                 for pre_task in indx:
-                    cur_grad = self.grads_layer[layer_num][:, t]
                     pre_grad = self.grads_layer[layer_num][:, pre_task]
                     dotp_weight = torch.mul(cur_grad, pre_grad)
                     pre_weight_norm = torch.mul(pre_grad, pre_grad)
-                    cur_weight_norm = torch.mul(cur_grad, cur_grad)
                     # compute the cosine similarity at layer level
                     cos_layer_temp.append((torch.sum(dotp_weight)
                                           / (torch.sum(cur_weight_norm).sqrt()
@@ -557,7 +565,8 @@ class Net(nn.Module):
                 cos_layer_temp += [0] * ((self.n_tasks - 1) - len(cos_layer_temp))
                 cos_layers.append(cos_layer_temp)
                 cos_weight.append(cos_weight_temp)
+                weights_norm.append(weights_norm_temp)
 
         self.zero_grad()
 
-        return cos_layers, cos_weight
+        return cos_layers, cos_weight, weights_norm
