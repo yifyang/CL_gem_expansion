@@ -264,6 +264,8 @@ if __name__ == "__main__":
                         help='the amount of items received by the algorithm at one time (set to 1 across all experiments). Variable name is from GEM project.')
     parser.add_argument('--lr', type=float, default=0.01,
                         help='learning rate')
+    parser.add_argument('--lr_mask', type=float, default=1e-4,
+                        help='Learning rate for mask')
 
     # memory parameters for GEM baselines
     parser.add_argument('--n_memories', type=int, default=25,
@@ -276,8 +278,6 @@ if __name__ == "__main__":
                         help='Threshold to decide expand or not')
     parser.add_argument('--expand_size', type=float, nargs='+', default=[0.4, 0.2],
                         help='Percent of neurons to expand')
-    parser.add_argument('--freeze_all', type=str, default='yes',
-                        help='Freeze all neurons from previous task or not')
     parser.add_argument('--task_num', type=int, default=6,
                         help='Number of tasks to observe')
     parser.add_argument('--mode', type=str, default="sort",
