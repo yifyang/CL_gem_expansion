@@ -153,8 +153,7 @@ class Net(nn.Module):
         #  store dict for each task
         self.checkpoint_path = args.checkpoint_path + args.model + '_' \
                                + args.data_file + '_' \
-                               + datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S") \
-                               + '.pt'
+                               + datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         self.neuron_share = []
 
         # allocate episodic memory
@@ -172,6 +171,7 @@ class Net(nn.Module):
             param_size = param.size()
             self.sel_neuron[0].append(np.arange(param_size[1]))
         self.sel_neuron[0] += [np.arange(n_outputs)]
+        self.current_task = 0
 
         # allocate counters
         self.observed_tasks = []
@@ -387,19 +387,22 @@ class Net(nn.Module):
 
     def share(self, new_dict, t):
         current_dict = copy.deepcopy(self.state_dict())
-        if t == 1:
-            task_dict = {"0": current_dict}
-        else:
-            task_dict = torch.load(self.checkpoint_path)
-            task_dict[str(t-1)] = current_dict
+        # if t == 1:
+        torch.save(current_dict, self.checkpoint_path + "_task" + str(t-1))
+        self.current_task = t
+        # else:
+        #     task_dict = torch.load(self.checkpoint_path)
+        #     task_dict[str(t-1)] = current_dict
 
         # update the expanded neurons in previous state_dict(set to be 0)
         # to fit in the expanded network
         for t_i in range(t):
             t_i = str(t_i)
-            for name in task_dict[t_i]:
+            task_check_path = self.checkpoint_path + "_task" + t_i
+            task_dict = torch.load(task_check_path)
+            for name in task_dict:
                 param_size = new_dict[name].size()
-                pre_size = task_dict[t_i][name].size()
+                pre_size = task_dict[name].size()
                 if 'num_batches_tracked' in name:
                     continue
                 elif 'bias' not in name and len(param_size) > 1:
@@ -410,7 +413,7 @@ class Net(nn.Module):
                         cat_weight = torch.zeros(param_size[0]-pre_size[0], pre_size[1])
                     if self.gpu:
                         cat_weight = cat_weight.cuda()
-                    task_dict[t_i][name] = torch.cat((task_dict[t_i][name], cat_weight), 0)
+                    task_dict[name] = torch.cat((task_dict[name], cat_weight), 0)
 
                     if len(param_size) > 2:
                         cat_weight = torch.zeros(param_size[0], param_size[1]-pre_size[1],
@@ -419,14 +422,14 @@ class Net(nn.Module):
                         cat_weight = torch.zeros(param_size[0], param_size[1]-pre_size[1])
                     if self.gpu:
                         cat_weight = cat_weight.cuda()
-                    task_dict[t_i][name] = torch.cat((task_dict[t_i][name], cat_weight), 1)
+                    task_dict[name] = torch.cat((task_dict[name], cat_weight), 1)
                 else:
                     cat_bias = torch.zeros(param_size[0]-pre_size[0])
                     if self.gpu:
                         cat_bias = cat_bias.cuda()
-                    task_dict[t_i][name] = torch.cat((task_dict[t_i][name], cat_bias), 0)
+                    task_dict[name] = torch.cat((task_dict[name], cat_bias), 0)
 
-        torch.save(task_dict, self.checkpoint_path)
+            torch.save(task_dict, task_check_path)
 
     def update(self, x, t, y):
         # update memory

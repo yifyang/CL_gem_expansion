@@ -120,11 +120,12 @@ def eval_tasks(model, tasks, args):
         x = task[1]
         y = task[2]
         rt = 0
+        task_check_path = model.checkpoint_path + "_task" + str(t)
         if 'expansion' in args.model \
-                and os.path.exists(model.checkpoint_path) \
-                and t < len(task_dict):
+                and os.path.exists(task_check_path) \
+                and t < model.current_task:
             # load checkpoint for evaluation
-            model.load_state_dict(task_dict[str(t)])
+            model.load_state_dict(torch.load(task_check_path))
         else:
             model.load_state_dict(current_dict)
 
