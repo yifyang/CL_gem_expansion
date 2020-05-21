@@ -308,7 +308,6 @@ if __name__ == "__main__":
 
     args.cuda = True if args.cuda == 'yes' else False
     args.finetune = True if args.finetune == 'yes' else False
-    args.freeze_all = True if args.freeze_all == 'yes' else False
 
     # taskinput model has one extra layer
     if args.model == 'taskinput':
